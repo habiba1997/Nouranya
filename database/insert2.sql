@@ -1,0 +1,67 @@
+insert into profiles (
+    full_name,
+    username,
+    email,
+    role
+)
+values
+    (
+        'حبيبة أحمد',
+        'habiba.admin',
+        'habiba.admin@nouranya-school.com',
+        'ADMIN'
+    ),
+    (
+        'سلوى',
+        'salwa.admin',
+        'salwa.admin@nouranya-school.com',
+        'ADMIN'
+    ),
+    (
+        'حبيبة أحمد',
+        'habiba.teacher',
+        'habiba.teacher@nouranya-school.com',
+        'TEACHER'
+    ),
+    (
+        'أمل',
+        'amal',
+        'amal@nouranya-school.com',
+        'TEACHER'
+    ),
+    (
+        'هبة',
+        'heba',
+        'heba@nouranya-school.com',
+        'TEACHER'
+    ),
+    (
+        'حسناء',
+        'hosna',
+        'hosna@nouranya-school.com',
+        'TEACHER'
+    ),
+    (
+        'نهال',
+        'nihal',
+        'nihal@nouranya-school.com',
+        'TEACHER'
+    ),
+    (
+        'ندى',
+        'nada',
+        'nada@nouranya-school.com',
+        'TEACHER'
+    ),
+    (
+        'هناء',
+        'hannah',
+        'hannah@nouranya-school.com',
+        'TEACHER'
+    ),
+    (
+        'ماجدة',
+        'magda',
+        'magda@nouranya-school.com',
+        'TEACHER'
+    );

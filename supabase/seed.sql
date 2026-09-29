@@ -1,0 +1,2 @@
+-- Intentionally empty: use the existing school's real data.
+-- Configure Midterm 1, Midterm 2 and Final maximum marks in Admin → Exam settings.
