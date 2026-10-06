@@ -24,6 +24,7 @@ import type {
   Weekly,
   Result,
   Exam,
+  WeeklyPlan,
 } from "./types/database";
 
 const icons: Record<string, string> = {
@@ -47,9 +48,11 @@ function Icon({ name }: { name: string }) {
 function Badge({
   value,
   homework = false,
+  late = false,
 }: {
   value: boolean | null | undefined;
   homework?: boolean;
+  late?: boolean;
 }) {
   return (
     <span
@@ -60,7 +63,9 @@ function Badge({
         ? "لم يُسجّل"
         : value
           ? homework
-            ? "تم"
+            ? late
+              ? "واجب متأخر"
+              : "تم"
             : "حاضر"
           : homework
             ? "لم يحل"
@@ -378,7 +383,7 @@ function Login({
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
-                placeholder="habiba.teacher"
+                placeholder="اسم المستخدم"
               />
             </label>
             <button className="primary" disabled={busy}>
@@ -429,9 +434,12 @@ function WeekPicker({
         ‹
       </button>
       <label>
-        <span>أسبوع </span>
+        <span>
+          أسبوع <bdi>{pretty(week)}</bdi>
+        </span>
         <input
           aria-label="أسبوع الدراسة"
+          onClick={(event) => event.currentTarget.showPicker?.()}
           type="date"
           value={week}
           onChange={(e) => {
@@ -470,7 +478,9 @@ function teacherNames(data: Data, id: string) {
 function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
   const [week, setWeek] = useState(saturday()),
     [search, setSearch] = useState(""),
-    [teacher, setTeacher] = useState("");
+    [teacher, setTeacher] = useState(""),
+    [attendance, setAttendance] = useState(""),
+    [homeworkFilter, setHomework] = useState("");
   const navigate = useNavigate(),
     admin = profile.role === "ADMIN",
     base = admin ? "/admin" : "/teacher";
@@ -491,14 +501,37 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
         r.midweek_attended == null ||
         r.homework_completed == null,
     ).length;
-  const filtered = students.filter(
-    (s) =>
-      s.full_name.toLowerCase().includes(search.toLowerCase()) &&
-      (!teacher ||
-        data.teacher_students.some(
-          (a) => a.student_id === s.id && a.teacher_id === teacher,
-        )),
-  );
+  const filtered = students
+    .filter(
+      (s) =>
+        s.full_name.toLowerCase().includes(search.toLowerCase()) &&
+        (!teacher ||
+          data.teacher_students.some(
+            (a) => a.student_id === s.id && a.teacher_id === teacher,
+          )),
+    )
+    .filter((s) => {
+      const r = data.weekly_records.find(
+        (r) => r.student_id === s.id && r.week_start_date === week,
+      );
+      return (
+        (!attendance ||
+          (attendance === "لم يُسجّل"
+            ? r?.saturday_attended == null || r?.midweek_attended == null
+            : attendance === "absent"
+              ? r?.saturday_attended === false || r?.midweek_attended === false
+              : r?.saturday_attended === true &&
+                r?.midweek_attended === true)) &&
+        (!homeworkFilter ||
+          (homeworkFilter === "لم يُسجّل"
+            ? r?.homework_completed == null
+            : homeworkFilter === "late"
+              ? r?.homework_completed === true && r?.homework_late === true
+              : homeworkFilter === "done"
+                ? r?.homework_completed === true && !r?.homework_late
+                : r?.homework_completed === false))
+      );
+    });
   return (
     <>
       <Heading
@@ -508,6 +541,11 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
       >
         <WeekPicker week={week} setWeek={setWeek} />
       </Heading>
+      <WeeklyPlanCard
+        key={week}
+        week={week}
+        plan={data.weekly_plans.find((p) => p.week_start_date === week)}
+      />
       <section className="welcome-banner">
         <div>
           <span className="banner-tag">كل طالب مهم</span>
@@ -604,6 +642,27 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
                 onChange={setTeacher}
               />
             )}
+            <select
+              aria-label="تصفية الحضور"
+              value={attendance}
+              onChange={(e) => setAttendance(e.target.value)}
+            >
+              <option value="">كل حالات الحضور</option>
+              <option value="present">حاضر في الحصتين</option>
+              <option value="absent">يوجد غياب</option>
+              <option value="لم يُسجّل">لم يُسجّل</option>
+            </select>
+            <select
+              aria-label="تصفية الواجب"
+              value={homeworkFilter}
+              onChange={(e) => setHomework(e.target.value)}
+            >
+              <option value="">كل حالات الواجب</option>
+              <option value="done">تم</option>
+              <option value="late">واجب متأخر</option>
+              <option value="missing">لم يحل</option>
+              <option value="لم يُسجّل">لم يُسجّل</option>
+            </select>
             <span className="muted count">{filtered.length} طالب</span>
           </div>
           <div className="table-wrap">
@@ -611,8 +670,8 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
               <thead>
                 <tr>
                   <th>الطالب</th>
-                  <th>السبت</th>
-                  <th>الحصة الثانية</th>
+                  <th>الحلقة الفردية (السبت)</th>
+                  <th>الحلقة الأونلاين</th>
                   <th>الواجب</th>
                   <th />
                 </tr>
@@ -642,14 +701,18 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
                           </span>
                         </button>
                       </td>
-                      <td data-label="السبت">
+                      <td data-label="الحلقة الفردية (السبت)">
                         <Badge value={r?.saturday_attended} />
                       </td>
-                      <td data-label="الحصة الثانية">
+                      <td data-label="الحلقة الأونلاين">
                         <Badge value={r?.midweek_attended} />
                       </td>
                       <td data-label="الواجب">
-                        <Badge value={r?.homework_completed} homework />
+                        <Badge
+                          value={r?.homework_completed}
+                          homework
+                          late={r?.homework_late}
+                        />
                       </td>
                       <td className="detail-arrow">
                         <button
@@ -822,6 +885,121 @@ function TriState({
     </select>
   );
 }
+function WeeklyPlanCard({
+  week,
+  plan,
+  action,
+  onEditingChange,
+}: {
+  week: string;
+  plan?: WeeklyPlan;
+  onEditingChange?: (editing: boolean) => void;
+  action?: Action;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<WeeklyPlan>(
+    plan || {
+      week_start_date: week,
+      group_content: "",
+      individual_content: "",
+      online_content: "",
+    },
+  );
+  const [busy, setBusy] = useState(false);
+  const fields = [
+    ["group_content", "الحلقة المجمعة (السبت)"],
+    ["individual_content", "الحلقة الفردية (السبت)"],
+    ["online_content", "الحلقة الأونلاين"],
+  ] as const;
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (!action) return;
+    setBusy(true);
+    try {
+      await action(
+        () => saveRows("weekly_plans", [draft], "week_start_date"),
+        "تم حفظ خطة الأسبوع.",
+      );
+      setEditing(false);
+      onEditingChange?.(false);
+    } catch {
+      /* displayed by parent */
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="panel weekly-plan" aria-label="خطة الأسبوع">
+      <div className="panel-heading">
+        <h2>خطة الأسبوع</h2>
+        {action && !editing && (
+          <button
+            onClick={() => {
+              setDraft(
+                plan || {
+                  week_start_date: week,
+                  group_content: "",
+                  individual_content: "",
+                  online_content: "",
+                },
+              );
+              setEditing(true);
+              onEditingChange?.(true);
+            }}
+          >
+            {plan ? "تعديل الخطة" : "إضافة خطة الأسبوع"}
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <form onSubmit={save} className="weekly-plan-form">
+          <p>
+            خطة أسبوع <bdi>{pretty(week)}</bdi>
+          </p>
+          {fields.map(([field, label]) => (
+            <label key={field}>
+              {label}
+              <textarea
+                value={draft[field]}
+                placeholder="اكتبي محتوى الحلقة"
+                onChange={(event) =>
+                  setDraft({ ...draft, [field]: event.target.value })
+                }
+              />
+            </label>
+          ))}
+          <div className="form-actions">
+            <button className="primary" disabled={busy}>
+              {busy ? "جارٍ الحفظ…" : "حفظ خطة الأسبوع"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setEditing(false);
+                onEditingChange?.(false);
+              }}
+            >
+              إلغاء
+            </button>
+          </div>
+        </form>
+      ) : plan ? (
+        <dl className="weekly-plan-content">
+          {fields.map(([field, label]) => (
+            <div key={field}>
+              <dt>{label}</dt>
+              <dd>{plan[field] || "لم يُحدد المحتوى بعد"}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="weekly-plan-empty">لم تُضف خطة لهذا الأسبوع بعد.</p>
+      )}
+    </section>
+  );
+}
+
 function WeeklyPage({
   data,
   profile,
@@ -832,20 +1010,20 @@ function WeeklyPage({
   action: Action;
 }) {
   const [week, setWeek] = useState(saturday()),
+    [planEditing, setPlanEditing] = useState(false),
     [draft, setDraft] = useState<Record<string, Weekly>>({}),
     [search, setSearch] = useState(""),
     [teacher, setTeacher] = useState(""),
-    [attendance, setAttendance] = useState(""),
-    [homework, setHomework] = useState(""),
     [busy, setBusy] = useState(false);
   const admin = profile.role === "ADMIN";
   function changeWeek(v: string) {
     if (
-      Object.keys(draft).length &&
+      (Object.keys(draft).length || planEditing) &&
       !confirm("هل تريدين إلغاء التغييرات غير المحفوظة؟")
     )
       return;
     setDraft({});
+    setPlanEditing(false);
     setWeek(v);
   }
   const get = (id: string): Weekly =>
@@ -867,31 +1045,15 @@ function WeeklyPage({
   ) {
     setDraft({ ...draft, [id]: { ...get(id), [field]: value } });
   }
-  const students = assigned(data, profile)
-    .filter(
-      (s) =>
-        (s.active || admin) &&
-        s.full_name.toLowerCase().includes(search.toLowerCase()) &&
-        (!teacher ||
-          data.teacher_students.some(
-            (a) => a.student_id === s.id && a.teacher_id === teacher,
-          )),
-    )
-    .filter((s) => {
-      const r = get(s.id);
-      return (
-        (!attendance ||
-          (attendance === "لم يُسجّل"
-            ? r.saturday_attended == null || r.midweek_attended == null
-            : attendance === "absent"
-              ? r.saturday_attended === false || r.midweek_attended === false
-              : r.saturday_attended === true && r.midweek_attended === true)) &&
-        (!homework ||
-          (homework === "لم يُسجّل"
-            ? r.homework_completed == null
-            : r.homework_completed === (homework === "done")))
-      );
-    });
+  const students = assigned(data, profile).filter(
+    (s) =>
+      (s.active || admin) &&
+      s.full_name.toLowerCase().includes(search.toLowerCase()) &&
+      (!teacher ||
+        data.teacher_students.some(
+          (a) => a.student_id === s.id && a.teacher_id === teacher,
+        )),
+  );
   async function save() {
     setBusy(true);
     try {
@@ -923,32 +1085,19 @@ function WeeklyPage({
       >
         <WeekPicker week={week} setWeek={changeWeek} />
       </Heading>
+      <WeeklyPlanCard
+        key={week}
+        week={week}
+        plan={data.weekly_plans.find((p) => p.week_start_date === week)}
+        action={admin ? action : undefined}
+        onEditingChange={setPlanEditing}
+      />
       <section className="panel">
         <div className="filters">
           <Search value={search} onChange={setSearch} />
           {admin && (
             <TeacherSelect data={data} value={teacher} onChange={setTeacher} />
           )}
-          <select
-            aria-label="تصفية الحضور"
-            value={attendance}
-            onChange={(e) => setAttendance(e.target.value)}
-          >
-            <option value="">كل حالات الحضور</option>
-            <option value="present">حاضر في الحصتين</option>
-            <option value="absent">يوجد غياب</option>
-            <option value="لم يُسجّل">لم يُسجّل</option>
-          </select>
-          <select
-            aria-label="تصفية الواجب"
-            value={homework}
-            onChange={(e) => setHomework(e.target.value)}
-          >
-            <option value="">كل حالات الواجب</option>
-            <option value="done">تم</option>
-            <option value="missing">لم يحل</option>
-            <option value="لم يُسجّل">لم يُسجّل</option>
-          </select>
         </div>
         <div className="table-wrap">
           <table>
@@ -956,8 +1105,8 @@ function WeeklyPage({
               <tr>
                 <th>الطالب</th>
                 {admin && <th>المعلمة</th>}
-                <th>السبت</th>
-                <th>الحصة الثانية</th>
+                <th>الحلقة الفردية (السبت)</th>
+                <th>الحلقة الأونلاين</th>
                 <th>الواجب</th>
                 <th>ملاحظة الأسبوع</th>
               </tr>
@@ -974,27 +1123,51 @@ function WeeklyPage({
                     {admin && (
                       <td data-label="المعلمات">{teacherNames(data, s.id)}</td>
                     )}
-                    <td data-label="السبت">
+                    <td data-label="الحلقة الفردية (السبت)">
                       <TriState
-                        label={`${s.full_name} السبت`}
+                        label={`الحلقة الفردية للطالب ${s.full_name}`}
                         value={r.saturday_attended}
                         onChange={(v) => edit(s.id, "saturday_attended", v)}
                       />
                     </td>
-                    <td data-label="الحصة الثانية">
+                    <td data-label="الحلقة الأونلاين">
                       <TriState
-                        label={`الحصة الثانية للطالب ${s.full_name}`}
+                        label={`الحلقة الأونلاين للطالب ${s.full_name}`}
                         value={r.midweek_attended}
                         onChange={(v) => edit(s.id, "midweek_attended", v)}
                       />
                     </td>
                     <td data-label="الواجب">
-                      <TriState
-                        label={`الواجب للطالب ${s.full_name}`}
-                        value={r.homework_completed}
-                        homework
-                        onChange={(v) => edit(s.id, "homework_completed", v)}
-                      />
+                      <select
+                        aria-label={`الواجب للطالب ${s.full_name}`}
+                        className="status-select"
+                        value={
+                          r.homework_completed == null
+                            ? ""
+                            : r.homework_completed
+                              ? r.homework_late
+                                ? "late"
+                                : "done"
+                              : "missing"
+                        }
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setDraft({
+                            ...draft,
+                            [s.id]: {
+                              ...r,
+                              homework_completed:
+                                value === "" ? null : value !== "missing",
+                              homework_late: value === "late",
+                            },
+                          });
+                        }}
+                      >
+                        <option value="">لم يُسجّل</option>
+                        <option value="done">تم</option>
+                        <option value="missing">لم يُحل</option>
+                        <option value="late">واجب متأخر</option>
+                      </select>
                     </td>
                     <td data-label="ملاحظة الأسبوع">
                       <input
@@ -1693,8 +1866,8 @@ function StudentDetails({ data, profile }: { data: Data; profile: Profile }) {
             <thead>
               <tr>
                 <th>أسبوع</th>
-                <th>السبت</th>
-                <th>الحصة الثانية</th>
+                <th>الحلقة الفردية (السبت)</th>
+                <th>الحلقة الأونلاين</th>
                 <th>الواجب</th>
                 <th>ملاحظة الأسبوع</th>
               </tr>
@@ -1703,14 +1876,18 @@ function StudentDetails({ data, profile }: { data: Data; profile: Profile }) {
               {history.map((r) => (
                 <tr key={r.week_start_date}>
                   <td data-label="أسبوع">{pretty(r.week_start_date)}</td>
-                  <td data-label="السبت">
+                  <td data-label="الحلقة الفردية (السبت)">
                     <Badge value={r.saturday_attended} />
                   </td>
-                  <td data-label="الحصة الثانية">
+                  <td data-label="الحلقة الأونلاين">
                     <Badge value={r.midweek_attended} />
                   </td>
                   <td data-label="الواجب">
-                    <Badge value={r.homework_completed} homework />
+                    <Badge
+                      value={r.homework_completed}
+                      homework
+                      late={r.homework_late}
+                    />
                   </td>
                   <td data-label="ملاحظة">{r.comment || "—"}</td>
                 </tr>

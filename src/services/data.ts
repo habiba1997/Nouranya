@@ -11,11 +11,21 @@ export async function loadData(): Promise<Data> {
     "weekly_records",
     "exams",
     "exam_results",
+    "weekly_plans",
   ] as const;
   const values = await Promise.all(
     tables.map(async (table) => {
       const { data, error } = await client.from(table).select("*");
-      if (error) throw error;
+      if (error) {
+        if (
+          table === "weekly_plans" &&
+          ["PGRST205", "42P01"].includes(error.code)
+        )
+          throw new Error(
+            "يجب تطبيق تحديث قاعدة البيانات database/alterone.sql قبل استخدام هذه النسخة. تواصلي مع مسؤولة النظام.",
+          );
+        throw error;
+      }
       return [table, data];
     }),
   );

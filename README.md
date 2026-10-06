@@ -72,3 +72,11 @@ npm run preview
 Deploy `dist/` to a static host with all application paths rewritten to `/index.html`. Set the two `VITE_` variables at build time. Use HTTPS. For phone testing on your own network, run `npm run dev -- --host 0.0.0.0` and open the computer's LAN address on the phone; this makes the development server reachable on the local network.
 
 This version represents one school term. Multi-term tracking and scheduled email reminders are deferred. Keep any future email-provider secrets in a server-side function.
+
+## تحديث إدخال الأسبوع وخطة الحلقات
+
+قبل نشر هذه النسخة، شغّلي `database/alterone.sql` في محرر SQL بمشروع Supabase الحالي. الملف يضيف علامة الواجب المتأخر وجدول `weekly_plans`، ويحافظ على السجلات الموجودة. يمكن تشغيله مجددًا دون إعادة إنشاء البيانات. لا تشغّلي ملف إنشاء قاعدة البيانات كاملة فوق المشروع الموجود.
+
+من حساب الإدارة، افتحي «الحضور والواجب»، اختاري الأسبوع ثم «إضافة خطة الأسبوع». أدخلي محتوى المجمعة (السبت)، والفردية (السبت)، والأونلاين ثم احفظي. تظهر الخطة في الرئيسية وإدخال الأسبوع للحسابات التي تدخل بعد الحفظ. الأونلاين غير مرتبط بيوم السبت؛ تاريخ السبت يحدد بداية الأسبوع فقط.
+
+حالات الواجب: لم يُسجّل، تم، لم يُحل، واجب متأخر. المتأخر يُحفظ كواجب مكتمل مع `homework_late=true`. فلاتر الحالات أصبحت في الرئيسية، وإدخال الأسبوع يحتفظ بالبحث وفلتر المعلمة للإدارة. هذا التحديث لا يضيف تسجيل حضور المجمعة أو صلاحياته بعد.

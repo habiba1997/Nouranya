@@ -20,6 +20,7 @@ export interface Weekly {
   saturday_attended: boolean | null;
   midweek_attended: boolean | null;
   homework_completed: boolean | null;
+  homework_late?: boolean;
   comment: string | null;
   recorded_by?: string;
 }
@@ -36,7 +37,14 @@ export interface Result {
   graded_by: string;
   graded_at: string;
 }
+export interface WeeklyPlan {
+  week_start_date: string;
+  group_content: string;
+  individual_content: string;
+  online_content: string;
+}
 export interface Data {
+  weekly_plans: WeeklyPlan[];
   profiles: Profile[];
   students: Student[];
   teacher_students: Assignment[];

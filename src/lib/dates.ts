@@ -12,11 +12,14 @@ export function shiftWeek(value: string, amount: number) {
   return localDate(d);
 }
 export function pretty(value: string) {
-  return new Date(value + "T12:00:00").toLocaleDateString("ar-EG", {
-    month: "short",
+  const parts = new Intl.DateTimeFormat("ar-EG", {
     day: "numeric",
+    month: "long",
     year: "numeric",
-  });
+  }).formatToParts(new Date(value + "T12:00:00"));
+  return ["day", "month", "year"]
+    .map((type) => parts.find((p) => p.type === type)?.value)
+    .join(" ");
 }
 export const examName = (v: string) =>
   ({
