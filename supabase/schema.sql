@@ -10,6 +10,15 @@ create table public.profiles (
 );
 create table public.students (id uuid primary key default gen_random_uuid(), full_name text not null check(length(trim(full_name))>0), active boolean not null default true, created_at timestamptz not null default now());
 create table public.teacher_students (teacher_id uuid not null references public.profiles(id) on delete cascade, student_id uuid not null references public.students(id) on delete cascade, primary key(teacher_id,student_id));
+create table public.student_teacher_assignments (
+ student_id uuid primary key references public.students(id) on delete cascade,
+ individual_teacher_id uuid references public.profiles(id),
+ online_teacher_id uuid references public.profiles(id)
+);
+create table public.teacher_schedules (
+ teacher_id uuid primary key references public.profiles(id) on delete cascade,
+ weekday integer check (weekday between 0 and 6), start_time time, notes text not null default ''
+);
 create table public.weekly_records (
  id uuid primary key default gen_random_uuid(), student_id uuid not null references public.students(id) on delete cascade,
  week_start_date date not null check(extract(dow from week_start_date)=6),
@@ -52,6 +61,7 @@ create trigger maximum_validation before update on public.exams for each row exe
 grant usage on schema public to anon;
 grant select,insert,update on public.profiles,public.students,public.weekly_records,public.exam_results,public.exams to anon;
 grant select,insert,update,delete on public.teacher_students to anon;
+grant select,insert,update on public.student_teacher_assignments,public.teacher_schedules to anon;
 create table public.group_attendance_records (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references public.students(id) on delete cascade,

@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import type { Data, Profile } from "../types/database";
+import type { Data, Profile, Weekly } from "../types/database";
 
 export async function loadData(): Promise<Data> {
   if (!supabase) throw new Error("Connect your Supabase project first.");
@@ -7,7 +7,8 @@ export async function loadData(): Promise<Data> {
   const tables = [
     "profiles",
     "students",
-    "teacher_students",
+    "student_teacher_assignments",
+    "teacher_schedules",
     "weekly_records",
     "exams",
     "exam_results",
@@ -23,6 +24,15 @@ export async function loadData(): Promise<Data> {
           })
         : query);
       if (error) {
+        if (
+          ["student_teacher_assignments", "teacher_schedules"].includes(
+            table,
+          ) &&
+          ["PGRST205", "42P01"].includes(error.code)
+        )
+          throw new Error(
+            "يجب تطبيق تحديث قاعدة البيانات database/alterfive_admin.sql قبل استخدام هذه النسخة.",
+          );
         if (
           table === "group_attendance_records" &&
           ["PGRST205", "42P01"].includes(error.code)
@@ -42,7 +52,19 @@ export async function loadData(): Promise<Data> {
       return [table, data];
     }),
   );
-  return Object.fromEntries(values) as unknown as Data;
+  const school = Object.fromEntries(values) as unknown as Data;
+  school.teacher_students = school.student_teacher_assignments.flatMap((a) =>
+    a.individual_teacher_id
+      ? [{ student_id: a.student_id, teacher_id: a.individual_teacher_id }]
+      : [],
+  );
+  school.online_teacher_students = school.student_teacher_assignments.flatMap(
+    (a) =>
+      a.online_teacher_id
+        ? [{ student_id: a.student_id, teacher_id: a.online_teacher_id }]
+        : [],
+  );
+  return school;
 }
 
 export async function saveRows<K extends keyof Data>(
@@ -59,14 +81,23 @@ export async function saveRows<K extends keyof Data>(
   if (error) throw error;
 }
 
-export async function removeAssignment(teacher: string, student: string) {
-  if (!supabase) throw new Error("Connect your Supabase project first.");
-  const { error } = await supabase
-    .from("teacher_students")
-    .delete()
-    .eq("teacher_id", teacher)
-    .eq("student_id", student);
-  if (error) throw error;
+export type WeeklyPatch = Pick<Weekly, "student_id" | "week_start_date"> &
+  Partial<Weekly>;
+export async function saveWeeklyPatches(rows: WeeklyPatch[]) {
+  if (!supabase) throw new Error("قاعدة البيانات غير متصلة.");
+  // Group identical sets of fields so another session teacher's columns are never sent.
+  const groups = new Map<string, WeeklyPatch[]>();
+  for (const row of rows) {
+    const key = Object.keys(row).sort().join(",");
+    groups.set(key, [...(groups.get(key) || []), row]);
+  }
+  for (const batch of groups.values()) {
+    const { error } = await supabase.from("weekly_records").upsert(batch, {
+      onConflict: "student_id,week_start_date",
+      defaultToNull: false,
+    });
+    if (error) throw error;
+  }
 }
 
 export async function getProfile(username: string): Promise<Profile> {

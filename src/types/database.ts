@@ -15,11 +15,24 @@ export interface Assignment {
   teacher_id: string;
   student_id: string;
 }
+export interface StudentTeachers {
+  student_id: string;
+  individual_teacher_id: string | null;
+  online_teacher_id: string | null;
+}
+export interface TeacherSchedule {
+  teacher_id: string;
+  weekday: number | null;
+  start_time: string | null;
+  notes: string;
+}
 export interface Weekly {
   student_id: string;
   week_start_date: string;
   saturday_attended: boolean | null;
   midweek_attended: boolean | null;
+  saturday_excused?: boolean;
+  midweek_excused?: boolean;
   homework_completed: boolean | null;
   homework_late?: boolean;
   comment: string | null;
@@ -52,6 +65,9 @@ export interface GroupAttendance {
   recorded_by: string;
 }
 export interface Data {
+  student_teacher_assignments: StudentTeachers[];
+  online_teacher_students: Assignment[];
+  teacher_schedules: TeacherSchedule[];
   group_attendance_records: GroupAttendance[];
   weekly_plans: WeeklyPlan[];
   profiles: Profile[];

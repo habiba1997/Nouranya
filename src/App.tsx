@@ -9,12 +9,16 @@ import {
   useLocation,
   useParams,
 } from "react-router-dom";
+import AdminAssignments from "./components/AdminAssignments";
+import AdminSchedules from "./components/AdminSchedules";
+import AdminOverview from "./components/AdminOverview";
+import { sessionAccess, weeklyPatch, teacherLabel } from "./lib/assignments";
 import { supabase } from "./lib/supabase";
 import { examName, pretty, saturday, shiftWeek } from "./lib/dates";
 import {
   getProfile,
   loadData,
-  removeAssignment,
+  saveWeeklyPatches,
   saveRows,
 } from "./services/data";
 import type {
@@ -51,10 +55,12 @@ function Badge({
   value,
   homework = false,
   late = false,
+  excused = false,
 }: {
   value: boolean | null | undefined;
   homework?: boolean;
   late?: boolean;
+  excused?: boolean;
 }) {
   return (
     <span
@@ -71,7 +77,9 @@ function Badge({
             : "حاضر"
           : homework
             ? "لم يحل"
-            : "غائب"}
+            : excused
+              ? "غائبة بعذر"
+              : "غائب"}
     </span>
   );
 }
@@ -93,6 +101,117 @@ function GroupBadge({ value }: { value?: GroupAttendance }) {
 }
 function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
+}
+function csvCell(value: unknown) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+function downloadCsv(filename: string, rows: unknown[][]) {
+  const csv =
+    "\ufeff" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(
+    new Blob([csv], { type: "text/csv;charset=utf-8" }),
+  );
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+function attendanceValue(
+  attended: boolean | null | undefined,
+  excused = false,
+) {
+  if (attended == null) return "لم يُسجل";
+  if (attended) return "حاضر";
+  return excused ? "I" : "غائب";
+}
+function homeworkValue(record: Weekly | undefined) {
+  if (record?.homework_completed == null) return "لم يُسجل";
+  if (!record.homework_completed) return "لم يُحل";
+  return record.homework_late ? "M" : "تم";
+}
+function exportAttendance(data: Data) {
+  const weeks = Array.from(
+    new Set(data.weekly_records.map((r) => r.week_start_date)),
+  ).sort();
+  const headers = ["الاسم", "معلمة الفردية", "معلمة الأونلاين"];
+  for (const week of weeks)
+    headers.push(
+      `${pretty(week)} - المجمعة`,
+      `${pretty(week)} - الفردية`,
+      `${pretty(week)} - الأونلاين`,
+      `${pretty(week)} - الواجب`,
+    );
+  headers.push("عمل السنة (عدد الخانات المكتملة)");
+  const rows: unknown[][] = [headers];
+  for (const student of data.students.filter((s) => s.active)) {
+    const assignment = data.student_teacher_assignments.find(
+      (a) => a.student_id === student.id,
+    );
+    const row: unknown[] = [
+      student.full_name,
+      teacherLabel(data, assignment?.individual_teacher_id),
+      teacherLabel(data, assignment?.online_teacher_id),
+    ];
+    let completed = 0;
+    for (const week of weeks) {
+      const weekly = data.weekly_records.find(
+        (r) => r.student_id === student.id && r.week_start_date === week,
+      );
+      const group = data.group_attendance_records.find(
+        (r) => r.student_id === student.id && r.week_start_date === week,
+      );
+      const values = [
+        group
+          ? group.attended
+            ? "حاضر"
+            : group.excused
+              ? "I"
+              : "غائب"
+          : "لم يُسجل",
+        attendanceValue(weekly?.saturday_attended, weekly?.saturday_excused),
+        attendanceValue(weekly?.midweek_attended, weekly?.midweek_excused),
+        homeworkValue(weekly),
+      ];
+      row.push(...values);
+      completed += values.filter(
+        (value) =>
+          value === "حاضر" || value === "تم" || value === "M" || value === "I",
+      ).length;
+    }
+    row.push(completed);
+    rows.push(row);
+  }
+  downloadCsv(`كشف-الحضور-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+}
+function exportExams(data: Data) {
+  const rows: unknown[][] = [
+    ["الاسم", "المعلمة", "المعلمة التي سجلت الاختبار"],
+  ];
+  for (const exam of data.exams)
+    rows[0].push(`${examName(exam.exam_type)} / ${exam.max_score}`);
+  for (const student of data.students.filter((s) => s.active)) {
+    const assignment = data.student_teacher_assignments.find(
+      (a) => a.student_id === student.id,
+    );
+    const row: unknown[] = [
+      student.full_name,
+      teacherLabel(data, assignment?.individual_teacher_id),
+    ];
+    const graders = new Set<string>();
+    for (const exam of data.exams) {
+      const result = data.exam_results.find(
+        (r) => r.student_id === student.id && r.exam_id === exam.id,
+      );
+      if (result) graders.add(teacherLabel(data, result.graded_by));
+      row.push(result?.score ?? "");
+    }
+    row.splice(2, 0, [...graders].join("، "));
+    rows.push(row);
+  }
+  downloadCsv(
+    `كشف-الاختبارات-${new Date().toISOString().slice(0, 10)}.csv`,
+    rows,
+  );
 }
 function App() {
   return (
@@ -150,6 +269,7 @@ function Application() {
         ["الطلاب", "/students"],
         ["المعلمات", "/teachers"],
         ["توزيع الطلاب", "/assignments"],
+        ["مواعيد المعلمات", "/schedules"],
         ["الحضور والواجب", "/attendance"],
         ["درجات الاختبارات", "/exams"],
         ["الاختبارات", "/exam-settings"],
@@ -262,7 +382,11 @@ function Application() {
                   />
                   <Route
                     path="/admin/assignments"
-                    element={<Assignments data={data} action={action} />}
+                    element={<AdminAssignments data={data} action={action} />}
+                  />
+                  <Route
+                    path="/admin/schedules"
+                    element={<AdminSchedules data={data} action={action} />}
                   />
                   <Route
                     path="/admin/attendance"
@@ -495,19 +619,14 @@ function assigned(data: Data, profile: Profile) {
   return data.students.filter(
     (s) =>
       profile.role === "ADMIN" ||
-      data.teacher_students.some(
+      [...data.teacher_students, ...data.online_teacher_students].some(
         (a) => a.teacher_id === profile.id && a.student_id === s.id,
       ),
   );
 }
 function teacherNames(data: Data, id: string) {
-  return (
-    data.teacher_students
-      .filter((a) => a.student_id === id)
-      .map((a) => data.profiles.find((p) => p.id === a.teacher_id)?.full_name)
-      .filter(Boolean)
-      .join(", ") || "غير محدد"
-  );
+  const a = data.student_teacher_assignments.find((a) => a.student_id === id);
+  return `الفردية: ${teacherLabel(data, a?.individual_teacher_id)} · الأونلاين: ${teacherLabel(data, a?.online_teacher_id)}`;
 }
 function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
   const [week, setWeek] = useState(saturday()),
@@ -519,28 +638,39 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
     admin = profile.role === "ADMIN",
     base = admin ? "/admin" : "/teacher";
   const students = assigned(data, profile).filter((s) => s.active);
-  const records = students.map((s) =>
+  const record = (id: string) =>
     data.weekly_records.find(
-      (r) => r.student_id === s.id && r.week_start_date === week,
-    ),
+      (r) => r.student_id === id && r.week_start_date === week,
+    );
+  const complete = students.filter((s) => {
+    const access = sessionAccess(data, profile, s.id),
+      r = record(s.id);
+    return (
+      (!access.individual || r?.saturday_attended != null) &&
+      (!access.online || r?.midweek_attended != null)
+    );
+  }).length;
+  const homeworkStudents = students.filter(
+    (s) => sessionAccess(data, profile, s.id).individual,
   );
-  const complete = records.filter(
-      (r) => r?.saturday_attended != null && r?.midweek_attended != null,
-    ).length,
-    homework = records.filter((r) => r?.homework_completed != null).length,
-    pending = records.filter(
-      (r) =>
-        !r ||
-        r.saturday_attended == null ||
-        r.midweek_attended == null ||
-        r.homework_completed == null,
-    ).length;
+  const homework = homeworkStudents.filter(
+    (s) => record(s.id)?.homework_completed != null,
+  ).length;
+  const pending = students.filter((s) => {
+    const access = sessionAccess(data, profile, s.id),
+      r = record(s.id);
+    return (
+      (access.individual &&
+        (r?.saturday_attended == null || r?.homework_completed == null)) ||
+      (access.online && r?.midweek_attended == null)
+    );
+  }).length;
   const filtered = students
     .filter(
       (s) =>
         s.full_name.toLowerCase().includes(search.toLowerCase()) &&
         (!teacher ||
-          data.teacher_students.some(
+          [...data.teacher_students, ...data.online_teacher_students].some(
             (a) => a.student_id === s.id && a.teacher_id === teacher,
           )),
     )
@@ -575,6 +705,33 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
       >
         <WeekPicker week={week} setWeek={setWeek} />
       </Heading>
+      {admin && (
+        <section className="panel export-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>تنزيل التقارير</h2>
+              <p>
+                ملف الحضور مستقل عن ملف درجات الاختبارات. يفتح الملفان مباشرة في
+                Excel.
+              </p>
+            </div>
+          </div>
+          <div className="export-actions">
+            <button className="primary" onClick={() => exportAttendance(data)}>
+              تنزيل كشف الحضور
+            </button>
+            <button onClick={() => exportExams(data)}>
+              تنزيل كشف الاختبارات
+            </button>
+          </div>
+          <p className="export-legend">
+            في كشف الحضور: I = غياب بعذر، M = واجب متأخر. «عمل السنة» هو عدد
+            خانات الحضور والواجب المكتملة حاليًا؛ يمكن تغيير طريقة احتسابه
+            لاحقًا إلى درجات بعد تحديد توزيع النقاط.
+          </p>
+        </section>
+      )}
+      {admin && <AdminOverview data={data} week={week} />}
       <WeeklyPlanCard
         key={week}
         week={week}
@@ -638,14 +795,14 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
           label="الحضور المسجل"
           value={`${complete}`}
           suffix={`/ ${students.length}`}
-          sub="الحصتان مسجلتان"
+          sub="الحضور المطلوب مسجل"
           icon="☑"
           tone="orange"
         />
         <Stat
           label="الواجب المسجل"
           value={homework}
-          suffix={`/ ${students.length}`}
+          suffix={`/ ${homeworkStudents.length}`}
           sub="واجب هذا الأسبوع"
           icon="▤"
           tone="blue"
@@ -743,10 +900,16 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
                         <GroupBadge value={group} />
                       </td>
                       <td data-label="الحلقة الفردية (السبت)">
-                        <Badge value={r?.saturday_attended} />
+                        <Badge
+                          value={r?.saturday_attended}
+                          excused={r?.saturday_excused}
+                        />
                       </td>
                       <td data-label="الحلقة الأونلاين">
-                        <Badge value={r?.midweek_attended} />
+                        <Badge
+                          value={r?.midweek_attended}
+                          excused={r?.midweek_excused}
+                        />
                       </td>
                       <td data-label="الواجب">
                         <Badge
@@ -905,15 +1068,18 @@ function TriState({
   onChange,
   homework = false,
   label,
+  disabled = false,
 }: {
   value: boolean | null | undefined;
   onChange: (v: boolean | null) => void;
   homework?: boolean;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <select
       aria-label={label}
+      disabled={disabled}
       className={`status-select ${value == null ? "" : value ? "yes" : "no"}`}
       value={value == null ? "" : String(value)}
       onChange={(e) =>
@@ -1084,7 +1250,19 @@ function WeeklyPage({
     field: keyof Weekly,
     value: string | boolean | null,
   ) {
-    setDraft({ ...draft, [id]: { ...get(id), [field]: value } });
+    setDraft({
+      ...draft,
+      [id]: {
+        ...get(id),
+        [field]: value,
+        ...(field === "saturday_attended" && value !== false
+          ? { saturday_excused: false }
+          : {}),
+        ...(field === "midweek_attended" && value !== false
+          ? { midweek_excused: false }
+          : {}),
+      },
+    });
   }
   const students = assigned(data, profile).filter(
     (s) =>
@@ -1100,13 +1278,8 @@ function WeeklyPage({
     try {
       await action(
         () =>
-          saveRows(
-            "weekly_records",
-            Object.values(draft).map((r) => ({
-              ...r,
-              recorded_by: profile.id,
-            })),
-            "student_id,week_start_date",
+          saveWeeklyPatches(
+            Object.values(draft).map((r) => weeklyPatch(data, profile, r)),
           ),
         "تم حفظ الحضور والواجب.",
       );
@@ -1122,7 +1295,7 @@ function WeeklyPage({
       <Heading
         eyebrow="تسجيل الأسبوع"
         title={admin ? "الحضور والواجب" : "حضور وواجب الأسبوع"}
-        description="سجّلي حضور الحصتين والواجب، وأضيفي ملاحظة إن أردتِ."
+        description="سجّلي الخانات الخاصة بحلقتك. الواجب والملاحظة لمعلمة الفردية؛ الخانات الأخرى للعرض فقط."
       >
         <WeekPicker week={week} setWeek={changeWeek} />
       </Heading>
@@ -1155,6 +1328,7 @@ function WeeklyPage({
             <tbody>
               {students.map((s) => {
                 const r = get(s.id);
+                const access = sessionAccess(data, profile, s.id);
                 return (
                   <tr key={s.id}>
                     <td data-label="الطالب">
@@ -1167,21 +1341,52 @@ function WeeklyPage({
                     <td data-label="الحلقة الفردية (السبت)">
                       <TriState
                         label={`الحلقة الفردية للطالب ${s.full_name}`}
+                        disabled={busy || !access.individual}
                         value={r.saturday_attended}
                         onChange={(v) => edit(s.id, "saturday_attended", v)}
                       />
+                      {r.saturday_attended === false && (
+                        <label className="excuse-choice">
+                          <input
+                            type="checkbox"
+                            aria-label={`عذر الفردية ${s.full_name}`}
+                            disabled={busy || !access.individual}
+                            checked={!!r.saturday_excused}
+                            onChange={(e) =>
+                              edit(s.id, "saturday_excused", e.target.checked)
+                            }
+                          />
+                          معتذرة
+                        </label>
+                      )}
                     </td>
                     <td data-label="الحلقة الأونلاين">
                       <TriState
                         label={`الحلقة الأونلاين للطالب ${s.full_name}`}
+                        disabled={busy || !access.online}
                         value={r.midweek_attended}
                         onChange={(v) => edit(s.id, "midweek_attended", v)}
                       />
+                      {r.midweek_attended === false && (
+                        <label className="excuse-choice">
+                          <input
+                            type="checkbox"
+                            aria-label={`عذر الأونلاين ${s.full_name}`}
+                            disabled={busy || !access.online}
+                            checked={!!r.midweek_excused}
+                            onChange={(e) =>
+                              edit(s.id, "midweek_excused", e.target.checked)
+                            }
+                          />
+                          معتذرة
+                        </label>
+                      )}
                     </td>
                     <td data-label="الواجب">
                       <select
                         aria-label={`الواجب للطالب ${s.full_name}`}
                         className="status-select"
+                        disabled={busy || !access.individual}
                         value={
                           r.homework_completed == null
                             ? ""
@@ -1213,6 +1418,7 @@ function WeeklyPage({
                     <td data-label="ملاحظة الأسبوع">
                       <input
                         aria-label={`ملاحظة أسبوع ${s.full_name}`}
+                        disabled={busy || !access.individual}
                         placeholder="ملاحظة (اختياري)"
                         value={r.comment || ""}
                         onChange={(e) => edit(s.id, "comment", e.target.value)}
@@ -1648,77 +1854,6 @@ function Teachers({ data, action }: { data: Data; action: Action }) {
     </>
   );
 }
-function Assignments({ data, action }: { data: Data; action: Action }) {
-  const [teacher, setTeacher] = useState(
-      data.profiles.find((p) => p.role === "TEACHER")?.id || "",
-    ),
-    [busy, setBusy] = useState(false),
-    [search, setSearch] = useState("");
-  async function toggle(id: string, has: boolean) {
-    setBusy(true);
-    try {
-      await action(() =>
-        has
-          ? removeAssignment(teacher, id)
-          : saveRows(
-              "teacher_students",
-              [{ teacher_id: teacher, student_id: id }],
-              "teacher_id,student_id",
-            ),
-      );
-    } catch {
-      /* parent */
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <>
-      <Heading
-        eyebrow="توزيع الطلاب"
-        title="توزيع الطلاب على المعلمات"
-        description="اختاري المعلمة ثم حددي طلابها."
-      />
-      <section className="panel">
-        <div className="filters">
-          <TeacherSelect data={data} value={teacher} onChange={setTeacher} />
-          <Search value={search} onChange={setSearch} />
-        </div>
-        {!teacher ? (
-          <Empty>اختاري معلمة.</Empty>
-        ) : (
-          <div className="assignment-list">
-            {data.students
-              .filter(
-                (s) =>
-                  s.active &&
-                  s.full_name.toLowerCase().includes(search.toLowerCase()),
-              )
-              .map((s) => {
-                const has = data.teacher_students.some(
-                  (a) => a.teacher_id === teacher && a.student_id === s.id,
-                );
-                return (
-                  <label className="assignment" key={s.id}>
-                    <span className="avatar student-avatar">
-                      {initials(s.full_name)}
-                    </span>
-                    <span>{s.full_name}</span>
-                    <input
-                      type="checkbox"
-                      checked={has}
-                      disabled={busy}
-                      onChange={() => void toggle(s.id, has)}
-                    />
-                  </label>
-                );
-              })}
-          </div>
-        )}
-      </section>
-    </>
-  );
-}
 function Exams({
   data,
   profile,
@@ -2120,10 +2255,16 @@ function StudentDetails({ data, profile }: { data: Data; profile: Profile }) {
                       />
                     </td>
                     <td data-label="الحلقة الفردية (السبت)">
-                      <Badge value={r?.saturday_attended} />
+                      <Badge
+                        value={r?.saturday_attended}
+                        excused={r?.saturday_excused}
+                      />
                     </td>
                     <td data-label="الحلقة الأونلاين">
-                      <Badge value={r?.midweek_attended} />
+                      <Badge
+                        value={r?.midweek_attended}
+                        excused={r?.midweek_excused}
+                      />
                     </td>
                     <td data-label="الواجب">
                       <Badge

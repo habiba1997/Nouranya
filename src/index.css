@@ -1955,6 +1955,95 @@ td {
   flex-wrap: wrap;
   padding: 0 20px 16px;
 }
+.export-panel {
+  margin-bottom: 20px;
+}
+.export-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 20px 14px;
+}
+.export-actions button {
+  min-height: 44px;
+}
+.export-legend {
+  padding: 0 20px 16px;
+  margin: 0;
+  color: #756b5e;
+  font-size: 13px;
+}
+.admin-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  padding: 0 20px 20px;
+}
+.admin-card {
+  border: 1px solid #e9e3d9;
+  border-radius: 12px;
+  padding: 16px;
+  background: #fffdf9;
+}
+.admin-card h2,
+.admin-card h3 {
+  margin: 0 0 12px;
+}
+.admin-card label {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  font-weight: 700;
+}
+.admin-card select,
+.admin-card input {
+  width: 100%;
+}
+.admin-card details {
+  margin-top: 10px;
+  color: #756b5e;
+}
+.admin-card details p {
+  margin: 8px 0 0;
+  line-height: 1.8;
+}
+.admin-summary-detail {
+  margin: 0 20px 18px;
+  color: #756b5e;
+}
+.admin-summary-detail p {
+  line-height: 1.8;
+}
+.excuse-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #756b5e;
+  font-size: 13px;
+}
+.excuse-choice input {
+  width: 20px;
+  height: 20px;
+}
+@media (max-width: 700px) {
+  .export-actions {
+    flex-direction: column;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .export-actions button {
+    width: 100%;
+  }
+  .export-legend {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .admin-cards {
+    grid-template-columns: 1fr;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
 .group-attendance-summary span {
   padding: 8px 12px;
   border-radius: 10px;
