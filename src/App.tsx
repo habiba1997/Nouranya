@@ -705,6 +705,11 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
       >
         <WeekPicker week={week} setWeek={setWeek} />
       </Heading>
+      <WeeklyPlanCard
+        key={week}
+        week={week}
+        plan={data.weekly_plans.find((p) => p.week_start_date === week)}
+      />
       {admin && (
         <section className="panel export-panel">
           <div className="panel-heading">
@@ -732,11 +737,6 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
         </section>
       )}
       {admin && <AdminOverview data={data} week={week} />}
-      <WeeklyPlanCard
-        key={week}
-        week={week}
-        plan={data.weekly_plans.find((p) => p.week_start_date === week)}
-      />
       <section className="welcome-banner">
         <div>
           <span className="banner-tag">كل طالب مهم</span>
