@@ -15,7 +15,12 @@ export async function loadData(): Promise<Data> {
   ] as const;
   const values = await Promise.all(
     tables.map(async (table) => {
-      const { data, error } = await client.from(table).select("*");
+      const query = client.from(table).select("*");
+      const { data, error } = await (table === "students"
+        ? query.order("created_at", { ascending: true }).order("id", {
+            ascending: true,
+          })
+        : query);
       if (error) {
         if (
           table === "weekly_plans" &&

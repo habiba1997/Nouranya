@@ -1339,7 +1339,11 @@ function Teachers({ data, action }: { data: Data; action: Action }) {
     if (!editing) return;
     setBusy(true);
     try {
-      await action(() => saveRows("profiles", [editing]));
+      await action(() =>
+        saveRows("profiles", [
+          { ...editing, email: editing.email?.trim() || null },
+        ]),
+      );
       setEditing(null);
     } catch {
       /* parent */
@@ -1372,7 +1376,7 @@ function Teachers({ data, action }: { data: Data; action: Action }) {
       {editing && (
         <form className="panel edit-form" onSubmit={submit}>
           <h2>بيانات المعلمة</h2>
-          <p>أدخلي اسم المعلمة واسم المستخدم والبريد الإلكتروني.</p>
+          <p>أدخلي اسم المعلمة واسم المستخدم. البريد الإلكتروني اختياري.</p>
           {(["full_name", "username", "email"] as const).map((k) => (
             <label key={k}>
               {
@@ -1384,9 +1388,9 @@ function Teachers({ data, action }: { data: Data; action: Action }) {
                 }[k]
               }
               <input
-                required
+                required={k !== "email"}
                 type={k === "email" ? "email" : "text"}
-                value={editing[k]}
+                value={editing[k] ?? ""}
                 onChange={(e) =>
                   setEditing({ ...editing, [k]: e.target.value })
                 }
@@ -1410,7 +1414,7 @@ function Teachers({ data, action }: { data: Data; action: Action }) {
             <section className="panel teacher-card" key={p.id}>
               <span className="avatar">{initials(p.full_name)}</span>
               <h2>{p.full_name}</h2>
-              <p>{p.email}</p>
+              <p>{p.email || "لا يوجد بريد إلكتروني"}</p>
               <small>@{p.username}</small>
               <hr />
               <p>

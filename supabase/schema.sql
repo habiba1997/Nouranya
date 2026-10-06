@@ -4,7 +4,7 @@ create type public.exam_type as enum ('MIDTERM_1', 'MIDTERM_2', 'FINAL');
 create table public.profiles (
  id uuid primary key default gen_random_uuid(),
  full_name text not null check(length(trim(full_name))>0), username text unique not null,
- email text unique not null, role public.user_role not null default 'TEACHER', created_at timestamptz not null default now()
+ email text unique, role public.user_role not null default 'TEACHER', created_at timestamptz not null default now()
 );
 create table public.students (id uuid primary key default gen_random_uuid(), full_name text not null check(length(trim(full_name))>0), active boolean not null default true, created_at timestamptz not null default now());
 create table public.teacher_students (teacher_id uuid not null references public.profiles(id) on delete cascade, student_id uuid not null references public.students(id) on delete cascade, primary key(teacher_id,student_id));

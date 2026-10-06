@@ -2,7 +2,7 @@ export interface Profile {
   id: string;
   full_name: string;
   username: string;
-  email: string;
+  email: string | null;
   role: "ADMIN" | "TEACHER";
 }
 export interface Student {
