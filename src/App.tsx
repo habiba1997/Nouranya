@@ -1339,48 +1339,52 @@ function WeeklyPage({
                       <td data-label="المعلمات">{teacherNames(data, s.id)}</td>
                     )}
                     <td data-label="الحلقة الفردية (السبت)">
-                      <TriState
-                        label={`الحلقة الفردية للطالب ${s.full_name}`}
-                        disabled={busy || !access.individual}
-                        value={r.saturday_attended}
-                        onChange={(v) => edit(s.id, "saturday_attended", v)}
-                      />
-                      {r.saturday_attended === false && (
-                        <label className="excuse-choice">
-                          <input
-                            type="checkbox"
-                            aria-label={`عذر الفردية ${s.full_name}`}
-                            disabled={busy || !access.individual}
-                            checked={!!r.saturday_excused}
-                            onChange={(e) =>
-                              edit(s.id, "saturday_excused", e.target.checked)
-                            }
-                          />
-                          معتذرة
-                        </label>
-                      )}
+                      <div className="weekly-status-cell">
+                        <TriState
+                          label={`الحلقة الفردية للطالب ${s.full_name}`}
+                          disabled={busy || !access.individual}
+                          value={r.saturday_attended}
+                          onChange={(v) => edit(s.id, "saturday_attended", v)}
+                        />
+                        {r.saturday_attended === false && (
+                          <label className="excuse-choice">
+                            <input
+                              type="checkbox"
+                              aria-label={`عذر الفردية ${s.full_name}`}
+                              disabled={busy || !access.individual}
+                              checked={!!r.saturday_excused}
+                              onChange={(e) =>
+                                edit(s.id, "saturday_excused", e.target.checked)
+                              }
+                            />
+                            معتذرة
+                          </label>
+                        )}
+                      </div>
                     </td>
                     <td data-label="الحلقة الأونلاين">
-                      <TriState
-                        label={`الحلقة الأونلاين للطالب ${s.full_name}`}
-                        disabled={busy || !access.online}
-                        value={r.midweek_attended}
-                        onChange={(v) => edit(s.id, "midweek_attended", v)}
-                      />
-                      {r.midweek_attended === false && (
-                        <label className="excuse-choice">
-                          <input
-                            type="checkbox"
-                            aria-label={`عذر الأونلاين ${s.full_name}`}
-                            disabled={busy || !access.online}
-                            checked={!!r.midweek_excused}
-                            onChange={(e) =>
-                              edit(s.id, "midweek_excused", e.target.checked)
-                            }
-                          />
-                          معتذرة
-                        </label>
-                      )}
+                      <div className="weekly-status-cell">
+                        <TriState
+                          label={`الحلقة الأونلاين للطالب ${s.full_name}`}
+                          disabled={busy || !access.online}
+                          value={r.midweek_attended}
+                          onChange={(v) => edit(s.id, "midweek_attended", v)}
+                        />
+                        {r.midweek_attended === false && (
+                          <label className="excuse-choice">
+                            <input
+                              type="checkbox"
+                              aria-label={`عذر الأونلاين ${s.full_name}`}
+                              disabled={busy || !access.online}
+                              checked={!!r.midweek_excused}
+                              onChange={(e) =>
+                                edit(s.id, "midweek_excused", e.target.checked)
+                              }
+                            />
+                            معتذرة
+                          </label>
+                        )}
+                      </div>
                     </td>
                     <td data-label="الواجب">
                       <select

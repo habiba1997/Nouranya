@@ -1531,6 +1531,38 @@ footer > span {
     min-height: 46px;
     font-size: 16px;
   }
+  .weekly-status-cell {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .weekly-status-cell .status-select {
+    width: 100%;
+    max-width: none;
+  }
+  .weekly-status-cell .excuse-choice {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 42px;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid #e5d8c8;
+    border-radius: 8px;
+    background: #fffaf3;
+    color: #665548;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .weekly-status-cell .excuse-choice input {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    margin: 0 0 0 6px;
+    accent-color: #6b5848;
+  }
   td input {
     max-width: calc(100% - 97px);
     width: 100%;
@@ -2024,6 +2056,12 @@ td {
 .excuse-choice input {
   width: 20px;
   height: 20px;
+}
+.weekly-status-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 @media (max-width: 700px) {
   .export-actions {
