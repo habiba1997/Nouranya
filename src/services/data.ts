@@ -12,6 +12,7 @@ export async function loadData(): Promise<Data> {
     "exams",
     "exam_results",
     "weekly_plans",
+    "group_attendance_records",
   ] as const;
   const values = await Promise.all(
     tables.map(async (table) => {
@@ -23,11 +24,18 @@ export async function loadData(): Promise<Data> {
         : query);
       if (error) {
         if (
+          table === "group_attendance_records" &&
+          ["PGRST205", "42P01"].includes(error.code)
+        )
+          throw new Error(
+            "يجب تطبيق تحديث قاعدة البيانات database/alterfour_group_attendance.sql قبل استخدام هذه النسخة.",
+          );
+        if (
           table === "weekly_plans" &&
           ["PGRST205", "42P01"].includes(error.code)
         )
           throw new Error(
-            "يجب تطبيق تحديث قاعدة البيانات database/alterone.sql قبل استخدام هذه النسخة. تواصلي مع مسؤولة النظام.",
+            "يجب تطبيق تحديث قاعدة البيانات database/alterone.sql قبل استخدام هذه النسخة.",
           );
         throw error;
       }

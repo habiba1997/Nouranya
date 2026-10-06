@@ -4,6 +4,7 @@ export interface Profile {
   username: string;
   email: string | null;
   role: "ADMIN" | "TEACHER";
+  can_record_group_attendance: boolean;
 }
 export interface Student {
   id: string;
@@ -43,7 +44,15 @@ export interface WeeklyPlan {
   individual_content: string;
   online_content: string;
 }
+export interface GroupAttendance {
+  student_id: string;
+  week_start_date: string;
+  attended: boolean;
+  excused: boolean;
+  recorded_by: string;
+}
 export interface Data {
+  group_attendance_records: GroupAttendance[];
   weekly_plans: WeeklyPlan[];
   profiles: Profile[];
   students: Student[];

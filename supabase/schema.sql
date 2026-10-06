@@ -4,17 +4,26 @@ create type public.exam_type as enum ('MIDTERM_1', 'MIDTERM_2', 'FINAL');
 create table public.profiles (
  id uuid primary key default gen_random_uuid(),
  full_name text not null check(length(trim(full_name))>0), username text unique not null,
- email text unique, role public.user_role not null default 'TEACHER', created_at timestamptz not null default now()
+ email text unique, role public.user_role not null default 'TEACHER',
+ can_record_group_attendance boolean not null default false,
+ created_at timestamptz not null default now()
 );
 create table public.students (id uuid primary key default gen_random_uuid(), full_name text not null check(length(trim(full_name))>0), active boolean not null default true, created_at timestamptz not null default now());
 create table public.teacher_students (teacher_id uuid not null references public.profiles(id) on delete cascade, student_id uuid not null references public.students(id) on delete cascade, primary key(teacher_id,student_id));
 create table public.weekly_records (
  id uuid primary key default gen_random_uuid(), student_id uuid not null references public.students(id) on delete cascade,
  week_start_date date not null check(extract(dow from week_start_date)=6),
- saturday_attended boolean, midweek_attended boolean, homework_completed boolean, comment text,
+ saturday_attended boolean, midweek_attended boolean, homework_completed boolean,
+ homework_late boolean not null default false check (not homework_late or homework_completed is true), comment text,
  recorded_by uuid references public.profiles(id), created_at timestamptz not null default now(), updated_at timestamptz not null default now(), unique(student_id,week_start_date)
 );
 create table public.exams (id uuid primary key default gen_random_uuid(), exam_type public.exam_type not null unique, max_score numeric not null check(max_score>0 and max_score<'Infinity'::numeric), created_at timestamptz not null default now());
+create table public.weekly_plans (
+ week_start_date date primary key check (extract(dow from week_start_date) = 6),
+ group_content text not null default '',
+ individual_content text not null default '',
+ online_content text not null default ''
+);
 create table public.exam_results (
  id uuid primary key default gen_random_uuid(), exam_id uuid not null references public.exams(id) on delete cascade, student_id uuid not null references public.students(id) on delete cascade,
  score numeric not null check(score>=0 and score<'Infinity'::numeric), notes text, graded_by uuid not null references public.profiles(id), graded_at timestamptz not null default now(), unique(exam_id,student_id)
@@ -43,5 +52,18 @@ create trigger maximum_validation before update on public.exams for each row exe
 grant usage on schema public to anon;
 grant select,insert,update on public.profiles,public.students,public.weekly_records,public.exam_results,public.exams to anon;
 grant select,insert,update,delete on public.teacher_students to anon;
+create table public.group_attendance_records (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  week_start_date date not null check (extract(dow from week_start_date) = 6),
+  attended boolean not null default true,
+  excused boolean not null default false,
+  recorded_by uuid not null references public.profiles(id),
+  created_at timestamptz not null default now(),
+  unique (student_id, week_start_date),
+  constraint group_absence_excuse check (not attended or not excused)
+);
+grant select,insert,update on public.group_attendance_records to anon;
+grant select,insert,update on public.weekly_plans to anon;
 -- RLS is intentionally not enabled in this no-authentication version.
 -- Do not deploy this access model for private records on a publicly accessible site.

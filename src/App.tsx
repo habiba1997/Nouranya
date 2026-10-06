@@ -25,6 +25,7 @@ import type {
   Result,
   Exam,
   WeeklyPlan,
+  GroupAttendance,
 } from "./types/database";
 
 const icons: Record<string, string> = {
@@ -36,6 +37,7 @@ const icons: Record<string, string> = {
   "درجات الاختبارات": "▥",
   الاختبارات: "⚙",
   "إدخال الأسبوع": "▤",
+  "غياب الحلقة المجمعة": "☑",
   "تسجيل الدرجات": "▥",
 };
 function Icon({ name }: { name: string }) {
@@ -70,6 +72,22 @@ function Badge({
           : homework
             ? "لم يحل"
             : "غائب"}
+    </span>
+  );
+}
+function GroupBadge({ value }: { value?: GroupAttendance }) {
+  return (
+    <span
+      className={`badge ${!value ? "pending" : value.attended ? "positive" : "negative"}`}
+    >
+      <span>●</span>{" "}
+      {!value
+        ? "لم يُسجّل"
+        : value.attended
+          ? "حاضرة"
+          : value.excused
+            ? "غائبة بعذر"
+            : "غائبة"}
     </span>
   );
 }
@@ -124,7 +142,8 @@ function Application() {
   }
   if (!profile) return <Login login={login} error={error} />;
   const admin = profile.role === "ADMIN",
-    base = admin ? "/admin" : "/teacher";
+    base = admin ? "/admin" : "/teacher",
+    canRecordGroup = !admin && profile.can_record_group_attendance;
   const nav = admin
     ? [
         ["الرئيسية", ""],
@@ -138,6 +157,9 @@ function Application() {
     : [
         ["الرئيسية", ""],
         ["إدخال الأسبوع", "/weekly"],
+        ...(canRecordGroup
+          ? [["غياب الحلقة المجمعة", "/group-attendance"]]
+          : []),
         ["تسجيل الدرجات", "/exams"],
       ];
   return (
@@ -281,6 +303,18 @@ function Application() {
                       <Exams data={data} profile={profile} action={action} />
                     }
                   />
+                  {canRecordGroup && (
+                    <Route
+                      path="/teacher/group-attendance"
+                      element={
+                        <GroupAttendancePage
+                          data={data}
+                          profile={profile}
+                          action={action}
+                        />
+                      }
+                    />
+                  )}
                 </>
               )}
               <Route path="*" element={<Navigate to={base} replace />} />
@@ -670,6 +704,7 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
               <thead>
                 <tr>
                   <th>الطالب</th>
+                  <th>الحلقة المجمعة</th>
                   <th>الحلقة الفردية (السبت)</th>
                   <th>الحلقة الأونلاين</th>
                   <th>الواجب</th>
@@ -679,6 +714,9 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
               <tbody>
                 {filtered.map((s) => {
                   const r = data.weekly_records.find(
+                    (r) => r.student_id === s.id && r.week_start_date === week,
+                  );
+                  const group = data.group_attendance_records.find(
                     (r) => r.student_id === s.id && r.week_start_date === week,
                   );
                   return (
@@ -700,6 +738,9 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
                             </small>
                           </span>
                         </button>
+                      </td>
+                      <td data-label="الحلقة المجمعة">
+                        <GroupBadge value={group} />
                       </td>
                       <td data-label="الحلقة الفردية (السبت)">
                         <Badge value={r?.saturday_attended} />
@@ -1202,6 +1243,181 @@ function WeeklyPage({
     </>
   );
 }
+function GroupAttendancePage({
+  data,
+  profile,
+  action,
+}: {
+  data: Data;
+  profile: Profile;
+  action: Action;
+}) {
+  const [week, setWeek] = useState(saturday());
+  const [search, setSearch] = useState("");
+  const [draft, setDraft] = useState<Record<string, GroupAttendance>>({});
+  const [busy, setBusy] = useState(false);
+  const students = data.students.filter((student) => student.active);
+  const saved = data.group_attendance_records.filter(
+    (record) =>
+      record.week_start_date === week &&
+      students.some((student) => student.id === record.student_id),
+  );
+  function get(studentId: string): GroupAttendance {
+    return (
+      draft[studentId] ||
+      saved.find((record) => record.student_id === studentId) || {
+        student_id: studentId,
+        week_start_date: week,
+        attended: true,
+        excused: false,
+        recorded_by: profile.id,
+      }
+    );
+  }
+  function edit(studentId: string, attended: boolean, excused: boolean) {
+    setDraft((current) => ({
+      ...current,
+      [studentId]: { ...get(studentId), attended, excused },
+    }));
+  }
+  function changeWeek(value: string) {
+    if (
+      Object.keys(draft).length &&
+      !confirm("هل تريدين إلغاء التغييرات غير المحفوظة؟")
+    )
+      return;
+    setDraft({});
+    setWeek(value);
+  }
+  const missing = students.filter(
+    (student) => !saved.some((record) => record.student_id === student.id),
+  );
+  const toSave = students
+    .filter(
+      (student) =>
+        draft[student.id] || missing.some((item) => item.id === student.id),
+    )
+    .map((student) => ({ ...get(student.id), recorded_by: profile.id }));
+  const absent = students.filter((student) => !get(student.id).attended).length;
+  const excused = students.filter(
+    (student) => !get(student.id).attended && get(student.id).excused,
+  ).length;
+  async function save() {
+    setBusy(true);
+    try {
+      await action(
+        () =>
+          saveRows(
+            "group_attendance_records",
+            toSave,
+            "student_id,week_start_date",
+          ),
+        "تم حفظ حضور الحلقة المجمعة.",
+      );
+      setDraft({});
+    } catch {
+      /* error is displayed by the parent */
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Heading
+        eyebrow="تسجيل الحلقة المجمعة"
+        title="غياب الحلقة المجمعة"
+        description="كل الطالبات حاضرات افتراضيًا. أزيلي العلامة عن الغائبة، ثم حددي هل هي معتذرة."
+      >
+        <WeekPicker week={week} setWeek={changeWeek} />
+      </Heading>
+      <section className="panel group-attendance-page">
+        <div className="panel-heading">
+          <div>
+            <h2>
+              أسبوع <bdi>{pretty(week)}</bdi>
+            </h2>
+            <p>
+              {saved.length === 0
+                ? "لم يُحفظ حضور هذا الأسبوع بعد."
+                : `سُجل حضور ${saved.length} من ${students.length} طالبة.`}
+            </p>
+          </div>
+        </div>
+        <div className="group-attendance-summary" aria-live="polite">
+          <span>حاضرات: {students.length - absent}</span>
+          <span>غائبات: {absent}</span>
+          <span>معتذرات: {excused}</span>
+        </div>
+        <div className="group-attendance-save-top">
+          <button
+            className="primary"
+            disabled={busy || !toSave.length}
+            onClick={() => void save()}
+          >
+            {busy ? "جارٍ الحفظ…" : "حفظ حضور المجمعة"}
+          </button>
+        </div>
+        <div className="group-attendance-search">
+          <Search value={search} onChange={setSearch} />
+        </div>
+        <div className="group-attendance-list">
+          {students
+            .filter((student) =>
+              student.full_name.toLowerCase().includes(search.toLowerCase()),
+            )
+            .map((student) => {
+              const record = get(student.id);
+              return (
+                <div className="group-attendance-row" key={student.id}>
+                  <label className="group-attendance-present">
+                    <input
+                      type="checkbox"
+                      checked={record.attended}
+                      onChange={(event) =>
+                        edit(student.id, event.target.checked, false)
+                      }
+                      aria-label={`حضور ${student.full_name}`}
+                    />
+                    <strong>{student.full_name}</strong>
+                    <span>{record.attended ? "حاضرة" : "غائبة"}</span>
+                  </label>
+                  {!record.attended && (
+                    <label className="group-attendance-excuse">
+                      <input
+                        type="checkbox"
+                        checked={record.excused}
+                        onChange={(event) =>
+                          edit(student.id, false, event.target.checked)
+                        }
+                        aria-label={`عذر ${student.full_name}`}
+                      />
+                      معتذرة
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+        <div className="save-bar">
+          <span>
+            {missing.length
+              ? `لم يُسجّل ${missing.length} طالبة بعد. سيُحفظن حاضرات عند الضغط على حفظ.`
+              : Object.keys(draft).length
+                ? "لديك تغييرات لم تُحفظ."
+                : "حضور هذا الأسبوع محفوظ."}
+          </span>
+          <button
+            className="primary"
+            disabled={busy || !toSave.length}
+            onClick={() => void save()}
+          >
+            {busy ? "جارٍ الحفظ…" : "حفظ حضور المجمعة"}
+          </button>
+        </div>
+      </section>
+    </>
+  );
+}
 function Students({ data, action }: { data: Data; action: Action }) {
   const [search, setSearch] = useState(""),
     [editing, setEditing] = useState<Student | null>(null),
@@ -1367,6 +1583,7 @@ function Teachers({ data, action }: { data: Data; action: Action }) {
               username: "",
               email: "",
               role: "TEACHER",
+              can_record_group_attendance: false,
             })
           }
         >
@@ -1834,9 +2051,16 @@ function StudentDetails({ data, profile }: { data: Data; profile: Profile }) {
   const { id } = useParams();
   const s = assigned(data, profile).find((s) => s.id === id);
   if (!s) return <Empty>لم يتم العثور على الطالب.</Empty>;
-  const history = data.weekly_records
-    .filter((r) => r.student_id === id)
-    .sort((a, b) => b.week_start_date.localeCompare(a.week_start_date));
+  const historyWeeks = Array.from(
+    new Set([
+      ...data.weekly_records
+        .filter((r) => r.student_id === id)
+        .map((r) => r.week_start_date),
+      ...data.group_attendance_records
+        .filter((r) => r.student_id === id)
+        .map((r) => r.week_start_date),
+    ]),
+  ).sort((a, b) => b.localeCompare(a));
   return (
     <>
       <Heading
@@ -1870,6 +2094,7 @@ function StudentDetails({ data, profile }: { data: Data; profile: Profile }) {
             <thead>
               <tr>
                 <th>أسبوع</th>
+                <th>الحلقة المجمعة</th>
                 <th>الحلقة الفردية (السبت)</th>
                 <th>الحلقة الأونلاين</th>
                 <th>الواجب</th>
@@ -1877,28 +2102,45 @@ function StudentDetails({ data, profile }: { data: Data; profile: Profile }) {
               </tr>
             </thead>
             <tbody>
-              {history.map((r) => (
-                <tr key={r.week_start_date}>
-                  <td data-label="أسبوع">{pretty(r.week_start_date)}</td>
-                  <td data-label="الحلقة الفردية (السبت)">
-                    <Badge value={r.saturday_attended} />
-                  </td>
-                  <td data-label="الحلقة الأونلاين">
-                    <Badge value={r.midweek_attended} />
-                  </td>
-                  <td data-label="الواجب">
-                    <Badge
-                      value={r.homework_completed}
-                      homework
-                      late={r.homework_late}
-                    />
-                  </td>
-                  <td data-label="ملاحظة">{r.comment || "—"}</td>
-                </tr>
-              ))}
+              {historyWeeks.map((week) => {
+                const r = data.weekly_records.find(
+                  (record) =>
+                    record.student_id === id && record.week_start_date === week,
+                );
+                return (
+                  <tr key={week}>
+                    <td data-label="أسبوع">{pretty(week)}</td>
+                    <td data-label="الحلقة المجمعة">
+                      <GroupBadge
+                        value={data.group_attendance_records.find(
+                          (group) =>
+                            group.student_id === s.id &&
+                            group.week_start_date === week,
+                        )}
+                      />
+                    </td>
+                    <td data-label="الحلقة الفردية (السبت)">
+                      <Badge value={r?.saturday_attended} />
+                    </td>
+                    <td data-label="الحلقة الأونلاين">
+                      <Badge value={r?.midweek_attended} />
+                    </td>
+                    <td data-label="الواجب">
+                      <Badge
+                        value={r?.homework_completed}
+                        homework
+                        late={r?.homework_late}
+                      />
+                    </td>
+                    <td data-label="ملاحظة">{r?.comment || "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          {!history.length && <Empty>لا توجد سجلات لهذا الطالب بعد.</Empty>}
+          {!historyWeeks.length && (
+            <Empty>لا توجد سجلات لهذا الطالب بعد.</Empty>
+          )}
         </div>
       </section>
     </>

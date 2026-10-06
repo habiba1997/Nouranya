@@ -62,6 +62,8 @@ Database triggers in the reference schema are not assumed to exist in your live 
 
 ## Verification and deployment
 
+For the independent group-attendance page, run `database/alterfour_group_attendance.sql` in the existing Supabase project before deploying this version. It adds `group_attendance_records` and a `can_record_group_attendance` profile flag, enabled for the teacher usernames `hosna`, `hebatullah`, and `habiba`. The page shows every active student checked as present. No attendance is recorded until someone presses **حفظ حضور المجمعة**; that first save stores all active students. Unchecking a student reveals the **معتذرة** option. The group page is separate from the individual, online, and homework records. The profile flag controls the app's navigation; with username-only entry and no authentication, it does not protect the database from direct API access.
+
 ```bash
 npm run build
 npm run lint
