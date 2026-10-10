@@ -2231,3 +2231,30 @@ td {
     min-width: 0;
   }
 }
+
+.admin-followup-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.admin-followup-cards a {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid #d9caba;
+  border-radius: 12px;
+  background: #fffaf3;
+  color: #514536;
+  text-decoration: none;
+}
+.admin-followup-cards strong { font-size: 30px; }
+.admin-followup-cards a:hover { background: #f1e5d5; }
+.admin-followup-cards a:focus-visible { outline: 3px solid #8b693c; outline-offset: 3px; }
+@media (max-width: 850px) {
+  .admin-followup-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 380px) {
+  .admin-followup-cards { grid-template-columns: 1fr; }
+}

@@ -12,6 +12,7 @@ import {
 import AdminAssignments from "./components/AdminAssignments";
 import AdminSchedules from "./components/AdminSchedules";
 import AdminOverview from "./components/AdminOverview";
+import AdminFollowup, { AdminFollowupCards } from "./components/AdminFollowup";
 import { sessionAccess, weeklyPatch, teacherLabel } from "./lib/assignments";
 import { supabase } from "./lib/supabase";
 import { examName, pretty, saturday, shiftWeek } from "./lib/dates";
@@ -122,26 +123,32 @@ function attendanceValue(
 ) {
   if (attended == null) return "لم يُسجل";
   if (attended) return "حاضر";
-  return excused ? "I" : "غائب";
+  return excused ? "م" : "غائب";
 }
 function homeworkValue(record: Weekly | undefined) {
   if (record?.homework_completed == null) return "لم يُسجل";
   if (!record.homework_completed) return "لم يُحل";
-  return record.homework_late ? "M" : "تم";
+  return record.homework_late ? "متأخر" : "تم";
 }
 function exportAttendance(data: Data) {
+  const firstWeek = "2026-10-10";
+  const currentWeek = saturday();
   const weeks = Array.from(
-    new Set(data.weekly_records.map((r) => r.week_start_date)),
-  ).sort();
+    new Set([
+      firstWeek,
+      ...data.weekly_plans.map((r) => r.week_start_date),
+      ...data.weekly_records.map((r) => r.week_start_date),
+      ...data.group_attendance_records.map((r) => r.week_start_date),
+    ]),
+  ).filter((week) => week >= firstWeek).sort();
   const headers = ["الاسم", "معلمة الفردية", "معلمة الأونلاين"];
   for (const week of weeks)
     headers.push(
-      `${pretty(week)} - المجمعة`,
-      `${pretty(week)} - الفردية`,
-      `${pretty(week)} - الأونلاين`,
-      `${pretty(week)} - الواجب`,
+      `${week.slice(8, 10)}/${week.slice(5, 7)} - المجمعة`,
+      `${week.slice(8, 10)}/${week.slice(5, 7)} - الفردية`,
+      `${week.slice(8, 10)}/${week.slice(5, 7)} - الأونلاين`,
+      `${week.slice(8, 10)}/${week.slice(5, 7)} - الواجب`,
     );
-  headers.push("عمل السنة (عدد الخانات المكتملة)");
   const rows: unknown[][] = [headers];
   for (const student of data.students.filter((s) => s.active)) {
     const assignment = data.student_teacher_assignments.find(
@@ -152,8 +159,11 @@ function exportAttendance(data: Data) {
       teacherLabel(data, assignment?.individual_teacher_id),
       teacherLabel(data, assignment?.online_teacher_id),
     ];
-    let completed = 0;
     for (const week of weeks) {
+      if (week > currentWeek) {
+        row.push("", "", "", "");
+        continue;
+      }
       const weekly = data.weekly_records.find(
         (r) => r.student_id === student.id && r.week_start_date === week,
       );
@@ -165,7 +175,7 @@ function exportAttendance(data: Data) {
           ? group.attended
             ? "حاضر"
             : group.excused
-              ? "I"
+              ? "م"
               : "غائب"
           : "لم يُسجل",
         attendanceValue(weekly?.saturday_attended, weekly?.saturday_excused),
@@ -173,12 +183,7 @@ function exportAttendance(data: Data) {
         homeworkValue(weekly),
       ];
       row.push(...values);
-      completed += values.filter(
-        (value) =>
-          value === "حاضر" || value === "تم" || value === "M" || value === "I",
-      ).length;
     }
-    row.push(completed);
     rows.push(row);
   }
   downloadCsv(`كشف-الحضور-${new Date().toISOString().slice(0, 10)}.csv`, rows);
@@ -372,6 +377,7 @@ function Application() {
               />
               {admin ? (
                 <>
+                  <Route path="/admin/followup" element={<AdminFollowup data={data} />} />
                   <Route
                     path="/admin/students"
                     element={<Students data={data} action={action} />}
@@ -730,9 +736,8 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
             </button>
           </div>
           <p className="export-legend">
-            في كشف الحضور: I = غياب بعذر، M = واجب متأخر. «عمل السنة» هو عدد
-            خانات الحضور والواجب المكتملة حاليًا؛ يمكن تغيير طريقة احتسابه
-            لاحقًا إلى درجات بعد تحديد توزيع النقاط.
+            في كشف الحضور: م = غياب بعذر، متأخر = واجب متأخر. يبدأ الكشف من
+            10/10، وتظل خانات الأسابيع القادمة فارغة حتى يبدأ أسبوعها.
           </p>
         </section>
       )}
@@ -808,6 +813,7 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
           tone="blue"
         />
       </div>
+      {admin && <AdminFollowupCards data={data} week={week} />}
       <div className="dashboard-grid">
         <section className="panel weekly-overview">
           <div className="panel-heading">

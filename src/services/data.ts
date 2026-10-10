@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { sortStudentsByRegister } from "../lib/studentOrder";
 import type { Data, Profile, Weekly } from "../types/database";
 
 export async function loadData(): Promise<Data> {
@@ -53,6 +54,7 @@ export async function loadData(): Promise<Data> {
     }),
   );
   const school = Object.fromEntries(values) as unknown as Data;
+  school.students = sortStudentsByRegister(school.students);
   school.teacher_students = school.student_teacher_assignments.flatMap((a) =>
     a.individual_teacher_id
       ? [{ student_id: a.student_id, teacher_id: a.individual_teacher_id }]
