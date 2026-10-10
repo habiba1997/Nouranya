@@ -318,12 +318,13 @@ function Application() {
           <button
             className="user"
             onClick={() => void logout()}
-            title="تغيير المستخدم"
+            title="تسجيل الخروج"
+            aria-label="تسجيل الخروج"
           >
             <span className="avatar">{initials(profile.full_name)}</span>
             <span>
               <strong>{profile.full_name}</strong>
-              <small>{admin ? "مديرة المدرسة" : "المعلمة"}</small>
+              <small>تسجيل الخروج</small>
             </span>
             <span>↪</span>
           </button>
@@ -657,7 +658,7 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
     );
   }).length;
   const homeworkStudents = students.filter(
-    (s) => sessionAccess(data, profile, s.id).individual,
+    (s) => sessionAccess(data, profile, s.id).online,
   );
   const homework = homeworkStudents.filter(
     (s) => record(s.id)?.homework_completed != null,
@@ -666,9 +667,8 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
     const access = sessionAccess(data, profile, s.id),
       r = record(s.id);
     return (
-      (access.individual &&
-        (r?.saturday_attended == null || r?.homework_completed == null)) ||
-      (access.online && r?.midweek_attended == null)
+      (access.individual && r?.saturday_attended == null) ||
+      (access.online && (r?.midweek_attended == null || r?.homework_completed == null))
     );
   }).length;
   const filtered = students
@@ -1301,7 +1301,7 @@ function WeeklyPage({
       <Heading
         eyebrow="تسجيل الأسبوع"
         title={admin ? "الحضور والواجب" : "حضور وواجب الأسبوع"}
-        description="سجّلي الخانات الخاصة بحلقتك. الواجب والملاحظة لمعلمة الفردية؛ الخانات الأخرى للعرض فقط."
+        description="سجّلي الخانات الخاصة بحلقتك. الواجب لمعلمة الأونلاين، والملاحظة لمعلمة الفردية؛ الخانات الأخرى للعرض فقط."
       >
         <WeekPicker week={week} setWeek={changeWeek} />
       </Heading>
@@ -1396,7 +1396,7 @@ function WeeklyPage({
                       <select
                         aria-label={`الواجب للطالب ${s.full_name}`}
                         className="status-select"
-                        disabled={busy || !access.individual}
+                        disabled={busy || !access.online}
                         value={
                           r.homework_completed == null
                             ? ""

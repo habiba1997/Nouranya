@@ -29,13 +29,13 @@ export function weeklyPatch(
       saturday_attended: record.saturday_attended,
       saturday_excused:
         record.saturday_attended === false && !!record.saturday_excused,
-      homework_completed: record.homework_completed,
-      homework_late:
-        record.homework_completed === true && !!record.homework_late,
       comment: record.comment,
     });
   if (access.online)
     Object.assign(patch, {
+      homework_completed: record.homework_completed,
+      homework_late:
+        record.homework_completed === true && !!record.homework_late,
       midweek_attended: record.midweek_attended,
       midweek_excused:
         record.midweek_attended === false && !!record.midweek_excused,
@@ -75,7 +75,7 @@ export function missingByTeacher(data: Data, week: string) {
         missingOnline: online.filter(
           (s) => record(s.id)?.midweek_attended == null,
         ),
-        missingHomework: individual.filter(
+        missingHomework: online.filter(
           (s) => record(s.id)?.homework_completed == null,
         ),
       };

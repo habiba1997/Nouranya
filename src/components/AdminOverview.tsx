@@ -61,7 +61,7 @@ export default function AdminOverview({
               ).map(([label, students]) => (
                 <details key={label}>
                   <summary>
-                    {label}: {students.length} ناقصة
+                    {label}: {students.length ? `${students.length} ناقصة` : "مكتمل ✓"}
                   </summary>
                   <p>
                     {students.map((s) => s.full_name).join("، ") || "مكتمل"}
