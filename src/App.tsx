@@ -12,6 +12,7 @@ import {
 import AdminAssignments from "./components/AdminAssignments";
 import AdminSchedules from "./components/AdminSchedules";
 import AdminOverview from "./components/AdminOverview";
+import SavedWeeklySummary from "./components/SavedWeeklySummary";
 import AdminFollowup, { AdminFollowupCards } from "./components/AdminFollowup";
 import { sessionAccess, weeklyPatch, teacherLabel } from "./lib/assignments";
 import { supabase } from "./lib/supabase";
@@ -1456,6 +1457,7 @@ function WeeklyPage({
           </button>
         </div>
       </section>
+      {!admin && <SavedWeeklySummary data={data} profile={profile} week={week} />}
     </>
   );
 }
@@ -1631,6 +1633,7 @@ function GroupAttendancePage({
           </button>
         </div>
       </section>
+      <SavedWeeklySummary data={data} profile={profile} week={week} group />
     </>
   );
 }
@@ -1898,6 +1901,10 @@ function Exams({
     setError("");
     const rows: Result[] = [];
     for (const [id, v] of Object.entries(draft)) {
+      if (!admin && exam.exam_type === "MIDTERM_1" && !sessionAccess(data, profile, id).online) {
+        setError("يمكنك تسجيل الاختبار التدريبي لطالباتك في الأونلاين فقط.");
+        return;
+      }
       const score = Number(v.score);
       if (
         !v.score.trim() ||
@@ -1931,6 +1938,7 @@ function Exams({
     }
   }
   const students = (exam ? data.students : [])
+    .filter((s) => admin || exam?.exam_type !== "MIDTERM_1" || sessionAccess(data, profile, s.id).online)
     .filter(
       (s) =>
         (s.active || admin) &&

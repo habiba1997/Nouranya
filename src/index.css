@@ -2271,3 +2271,8 @@ td {
   .sidebar .school-note { display: none; }
   .sidebar .workspace-label { margin-top: 20px; }
 }
+
+.saved-weekly-summary { padding: 20px; margin-top: 20px; }
+.saved-weekly-summary details { border-top: 1px solid #e5dfd4; padding: 10px 0; }
+.saved-weekly-summary summary { cursor: pointer; min-height: 44px; padding: 10px 0; }
+.saved-weekly-summary li { padding: 6px 0; }

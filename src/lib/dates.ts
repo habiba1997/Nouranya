@@ -23,7 +23,7 @@ export function pretty(value: string) {
 }
 export const examName = (v: string) =>
   ({
-    MIDTERM_1: "اختبار الفترة الأول",
+    MIDTERM_1: "اختبار تدريبي",
     MIDTERM_2: "اختبار الفترة الثاني",
     FINAL: "الاختبار النهائي",
   })[v] || v;
