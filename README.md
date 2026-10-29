@@ -13,7 +13,7 @@ The existing six tables were checked through the read API and their required col
 Use Node.js **22.13 or newer**; the default Node 18 is too old for Vite 8.
 
 ```bash
-nvm use 22
+nvm use
 npm install
 npm run dev
 ```
