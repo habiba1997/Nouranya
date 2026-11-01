@@ -67,3 +67,25 @@ export default function AdminFollowup({ data }: { data: Data }) {
     </table>{!students.length && <p>لا توجد طالبات بهذه الحالة في الأسبوع المحدد.</p>}</div>
   </section>;
 }
+
+export function RepeatedAbsence({ data }: { data: Data }) {
+  const [teacher, setTeacher] = useSearchParams();
+  const selected = teacher.get("teacher") || "";
+  const rows = data.students.flatMap(student => {
+    const assignment = data.student_teacher_assignments.find(a => a.student_id === student.id);
+    const teacherIds = [assignment?.individual_teacher_id, assignment?.online_teacher_id].filter(Boolean);
+    if (selected && !teacherIds.includes(selected)) return [];
+    const events = [
+      ...data.group_attendance_records.filter(r => r.student_id === student.id && !r.attended).map(r => ({ date: r.week_start_date, place: "الحلقة المجمعة", excused: r.excused })),
+      ...data.weekly_records.filter(r => r.student_id === student.id).flatMap(r => [
+        ...(r.saturday_attended === false ? [{ date: r.week_start_date, place: "الحلقة الفردية (السبت)", excused: !!r.saturday_excused }] : []),
+        ...(r.midweek_attended === false ? [{ date: r.week_start_date, place: "حلقة الأونلاين (أسبوع " + pretty(r.week_start_date) + ")", excused: !!r.midweek_excused }] : []),
+      ]),
+    ].sort((a, b) => b.date.localeCompare(a.date));
+    return events.length >= 3 ? [{ student, assignment, events }] : [];
+  }).sort((a, b) => b.events.length - a.events.length || a.student.full_name.localeCompare(b.student.full_name, "ar"));
+  return <section className="panel"><div className="panel-heading"><div><h1>الغياب المتكرر (٣ مرات أو أكثر)</h1><p>من بيانات الحضور المسجلة فقط، وتشمل الغياب بعذر. لم تُحسب الأيام التي لم يُسجّل حضورها.</p></div></div>
+    <div className="filters"><select aria-label="تصفية حسب المعلمة" value={selected} onChange={e => setTeacher(e.target.value ? { teacher: e.target.value } : {})}><option value="">كل المعلمات</option>{data.profiles.filter(p => p.role === "TEACHER").map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></div>
+    <div className="table-wrap"><table><thead><tr><th>الطالبة</th><th>معلمة الفردية</th><th>معلمة الأونلاين</th><th>عدد مرات الغياب</th><th>أين ومتى</th></tr></thead><tbody>{rows.map(({ student, assignment, events }) => <tr key={student.id}><td><Link to={`/admin/students/${student.id}`}>{student.full_name}</Link></td><td>{teacherLabel(data, assignment?.individual_teacher_id)}</td><td>{teacherLabel(data, assignment?.online_teacher_id)}</td><td>{events.length}</td><td>{events.map((event, i) => <div key={i}>{event.place} · {pretty(event.date)}{event.excused ? " · بعذر" : ""}</div>)}</td></tr>)}</tbody></table>{!rows.length && <p>لا توجد طالبات بثلاث مرات غياب مسجلة أو أكثر.</p>}</div>
+  </section>;
+}

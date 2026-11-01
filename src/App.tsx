@@ -13,7 +13,7 @@ import AdminAssignments from "./components/AdminAssignments";
 import AdminSchedules from "./components/AdminSchedules";
 import AdminOverview from "./components/AdminOverview";
 import SavedWeeklySummary from "./components/SavedWeeklySummary";
-import AdminFollowup, { AdminFollowupCards } from "./components/AdminFollowup";
+import AdminFollowup, { AdminFollowupCards, RepeatedAbsence } from "./components/AdminFollowup";
 import { sessionAccess, weeklyPatch, teacherLabel } from "./lib/assignments";
 import { supabase } from "./lib/supabase";
 import { examName, pretty, saturday, shiftWeek } from "./lib/dates";
@@ -32,6 +32,7 @@ import type {
   Exam,
   WeeklyPlan,
   GroupAttendance,
+  FirstExamAttendance,
 } from "./types/database";
 
 const icons: Record<string, string> = {
@@ -194,7 +195,7 @@ function exportExams(data: Data) {
     ["الاسم", "المعلمة", "المعلمة التي سجلت الاختبار"],
   ];
   for (const exam of data.exams)
-    rows[0].push(`${examName(exam.exam_type)} / ${exam.max_score}`);
+    rows[0].push(exam.exam_type === "MIDTERM_1" ? "حضور الاختبار الأول" : `${examName(exam.exam_type)} / ${exam.max_score}`);
   for (const student of data.students.filter((s) => s.active)) {
     const assignment = data.student_teacher_assignments.find(
       (a) => a.student_id === student.id,
@@ -209,7 +210,7 @@ function exportExams(data: Data) {
         (r) => r.student_id === student.id && r.exam_id === exam.id,
       );
       if (result) graders.add(teacherLabel(data, result.graded_by));
-      row.push(result?.score ?? "");
+      row.push(exam.exam_type === "MIDTERM_1" ? (data.first_exam_attendance.find(a => a.student_id === student.id)?.attended === false ? "غائبة" : "حاضرة") : result?.score ?? "");
     }
     row.splice(2, 0, [...graders].join("، "));
     rows.push(row);
@@ -277,7 +278,8 @@ function Application() {
         ["توزيع الطلاب", "/assignments"],
         ["مواعيد المعلمات", "/schedules"],
         ["الحضور والواجب", "/attendance"],
-        ["درجات الاختبارات", "/exams"],
+        ["الغياب المتكرر", "/repeated-absence"],
+        ["الاختبارات والحضور", "/exams"],
         ["الاختبارات", "/exam-settings"],
       ]
     : [
@@ -286,7 +288,7 @@ function Application() {
         ...(canRecordGroup
           ? [["غياب الحلقة المجمعة", "/group-attendance"]]
           : []),
-        ["تسجيل الدرجات", "/exams"],
+        ["الاختبارات والحضور", "/exams"],
       ];
   return (
     <div className="app-shell">
@@ -406,6 +408,7 @@ function Application() {
                       />
                     }
                   />
+                  <Route path="/admin/repeated-absence" element={<RepeatedAbsence data={data} />} />
                   <Route
                     path="/admin/exams"
                     element={
@@ -1880,6 +1883,7 @@ function Exams({
     [draft, setDraft] = useState<
       Record<string, { score: string; notes: string }>
     >({}),
+    [attendanceDraft, setAttendanceDraft] = useState<Record<string, boolean>>({}),
     [search, setSearch] = useState(""),
     [teacher, setTeacher] = useState(""),
     [min, setMin] = useState(""),
@@ -1895,6 +1899,14 @@ function Exams({
     return (
       draft[id] || { score: r ? String(r.score) : "", notes: r?.notes || "" }
     );
+  }
+  async function saveAttendance() {
+    const rows: FirstExamAttendance[] = Object.entries(attendanceDraft).map(([student_id, attended]) => ({ student_id, attended, recorded_by: profile.id }));
+    setBusy(true);
+    try {
+      await action(() => saveRows("first_exam_attendance", rows, "student_id"), "تم حفظ حضور الاختبار الأول.");
+      setAttendanceDraft({});
+    } catch { /* parent displays error */ } finally { setBusy(false); }
   }
   async function save() {
     if (!exam) return;
@@ -1938,7 +1950,7 @@ function Exams({
     }
   }
   const students = (exam ? data.students : [])
-    .filter((s) => admin || exam?.exam_type !== "MIDTERM_1" || sessionAccess(data, profile, s.id).online)
+    .filter((s) => admin || exam?.exam_type !== "MIDTERM_1" || data.student_teacher_assignments.some((a) => a.student_id === s.id && (a.individual_teacher_id === profile.id || a.online_teacher_id === profile.id)))
     .filter(
       (s) =>
         (s.active || admin) &&
@@ -1949,11 +1961,26 @@ function Exams({
         (r) => r.student_id === s.id && r.exam_id === examId,
       );
       return (
-        (!teacher || r?.graded_by === teacher) &&
-        (min === "" || (!!r && r.score >= Number(min))) &&
-        (max === "" || (!!r && r.score <= Number(max)))
+        (!teacher || (exam?.exam_type === "MIDTERM_1" ? data.student_teacher_assignments.some((a) => a.student_id === s.id && (a.individual_teacher_id === teacher || a.online_teacher_id === teacher)) : r?.graded_by === teacher)) &&
+        (exam?.exam_type === "MIDTERM_1" || min === "" || (!!r && r.score >= Number(min))) &&
+        (exam?.exam_type === "MIDTERM_1" || max === "" || (!!r && r.score <= Number(max)))
       );
     });
+  if (exam?.exam_type === "MIDTERM_1") return <>
+    <Heading eyebrow="الاختبار الأول" title="حضور الاختبار الأول" description="جميع الطالبات حاضرات افتراضيًا. اختاري المعلمة وحددي الغائبات ثم احفظي." />
+    <section className="panel">
+      <div className="filters">
+        <select aria-label="الاختبار" value={examId} onChange={e => { setExamId(e.target.value); setAttendanceDraft({}); }}><option value={examId}>الاختبار الأول</option>{data.exams.filter(e => e.id !== examId).map(e => <option key={e.id} value={e.id}>{examName(e.exam_type)}</option>)}</select>
+        <Search value={search} onChange={setSearch} />
+        {admin && <TeacherSelect data={data} value={teacher} onChange={setTeacher} />}
+      </div>
+      <p>الحاضرات: {students.filter(s => attendanceDraft[s.id] ?? data.first_exam_attendance.find(r => r.student_id === s.id)?.attended ?? true).length} · الغائبات: {students.filter(s => !(attendanceDraft[s.id] ?? data.first_exam_attendance.find(r => r.student_id === s.id)?.attended ?? true)).length}</p>
+      <div className="table-wrap"><table><thead><tr><th>الطالبة</th><th>معلمة الفردية</th><th>معلمة الأونلاين</th><th>الحضور</th></tr></thead><tbody>
+        {students.map(s => <tr key={s.id}><td>{s.full_name}</td><td>{teacherLabel(data, data.student_teacher_assignments.find(a => a.student_id === s.id)?.individual_teacher_id)}</td><td>{teacherLabel(data, data.student_teacher_assignments.find(a => a.student_id === s.id)?.online_teacher_id)}</td><td><label><input type="checkbox" checked={attendanceDraft[s.id] ?? data.first_exam_attendance.find(r => r.student_id === s.id)?.attended ?? true} onChange={e => setAttendanceDraft(current => ({...current, [s.id]: e.target.checked}))} /> حاضرة</label></td></tr>)}
+      </tbody></table>{!students.length && <Empty>لا توجد طالبات بهذه المواصفات.</Empty>}</div>
+      <div className="save-bar"><span>تُحفظ التغييرات فقط؛ غير المسجلات حاضرات افتراضيًا.</span><button className="primary" disabled={busy || !Object.keys(attendanceDraft).length} onClick={() => void saveAttendance()}>{busy ? "جارٍ الحفظ…" : "حفظ الحضور"}</button></div>
+    </section>
+  </>;
   return (
     <>
       <Heading
@@ -2121,13 +2148,13 @@ function ExamSettings({ data, action }: { data: Data; action: Action }) {
         data.exams.find((e) => e.exam_type === type) || {
           id: crypto.randomUUID(),
           exam_type: type,
-          max_score: 0,
+          max_score: type === "MIDTERM_1" ? 1 : 0,
         },
     ),
   );
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(
-      definitions.map((e) => [e.id, e.max_score ? String(e.max_score) : ""]),
+      definitions.map((e) => [e.id, e.exam_type === "MIDTERM_1" ? String(e.max_score || 1) : e.max_score ? String(e.max_score) : ""]),
     ),
   );
   const [busy, setBusy] = useState(false),
@@ -2165,8 +2192,8 @@ function ExamSettings({ data, action }: { data: Data; action: Action }) {
     <>
       <Heading
         eyebrow="إعداد الاختبارات"
-        title="الدرجات النهائية للاختبارات"
-        description="أدخلي الدرجة النهائية لكل اختبار."
+        title="إعداد الاختبارات"
+        description="الاختبار الأول بالحضور والغياب، وحددي درجات الاختبارين الآخرين."
       />
       <form className="panel edit-form" onSubmit={submit}>
         {error && (
@@ -2177,7 +2204,7 @@ function ExamSettings({ data, action }: { data: Data; action: Action }) {
         {!data.exams.length && (
           <p>أدخلي الدرجة النهائية المعتمدة لكل اختبار.</p>
         )}
-        {definitions.map((e) => (
+        {definitions.filter(e => e.exam_type !== "MIDTERM_1").map((e) => (
           <label key={e.id}>
             {examName(e.exam_type)} — الدرجة النهائية
             <input
@@ -2230,10 +2257,10 @@ function StudentDetails({ data, profile }: { data: Data; profile: Profile }) {
             <section className="panel stat" key={e.id}>
               <span>{examName(e.exam_type)}</span>
               <strong>
-                {r?.score ?? "—"}
-                <small> / {e.max_score}</small>
+                {e.exam_type === "MIDTERM_1" ? (data.first_exam_attendance.find(a => a.student_id === id)?.attended === false ? "غائبة" : "حاضرة") : r?.score ?? "—"}
+                {e.exam_type !== "MIDTERM_1" && <small> / {e.max_score}</small>}
               </strong>
-              <p>{r?.notes || "لا توجد ملاحظات."}</p>
+              {e.exam_type !== "MIDTERM_1" && <p>{r?.notes || "لا توجد ملاحظات."}</p>}
             </section>
           );
         })}

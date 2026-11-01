@@ -64,7 +64,14 @@ export interface GroupAttendance {
   excused: boolean;
   recorded_by: string;
 }
+export interface FirstExamAttendance {
+  student_id: string;
+  attended: boolean;
+  recorded_by: string;
+  recorded_at?: string;
+}
 export interface Data {
+  first_exam_attendance: FirstExamAttendance[];
   student_teacher_assignments: StudentTeachers[];
   online_teacher_students: Assignment[];
   teacher_schedules: TeacherSchedule[];

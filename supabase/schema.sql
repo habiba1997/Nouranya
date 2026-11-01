@@ -77,3 +77,10 @@ grant select,insert,update on public.group_attendance_records to anon;
 grant select,insert,update on public.weekly_plans to anon;
 -- RLS is intentionally not enabled in this no-authentication version.
 -- Do not deploy this access model for private records on a publicly accessible site.
+create table public.first_exam_attendance (
+ student_id uuid primary key references public.students(id) on delete cascade,
+ attended boolean not null default true,
+ recorded_by uuid not null references public.profiles(id),
+ recorded_at timestamptz not null default now()
+);
+grant select,insert,update on public.first_exam_attendance to anon;
