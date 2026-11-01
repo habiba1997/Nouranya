@@ -13,6 +13,7 @@ export async function loadData(): Promise<Data> {
     "weekly_records",
     "exams",
     "exam_results",
+    "first_exam_attendance",
     "weekly_plans",
     "group_attendance_records",
   ] as const;
@@ -34,6 +35,10 @@ export async function loadData(): Promise<Data> {
           throw new Error(
             "يجب تطبيق تحديث قاعدة البيانات database/alterfive_admin.sql قبل استخدام هذه النسخة.",
           );
+        if (
+          table === "first_exam_attendance" &&
+          ["PGRST205", "42P01"].includes(error.code)
+        ) throw new Error("يجب تطبيق تحديث قاعدة البيانات database/altersix_first_exam_attendance.sql قبل استخدام هذه النسخة.");
         if (
           table === "group_attendance_records" &&
           ["PGRST205", "42P01"].includes(error.code)
