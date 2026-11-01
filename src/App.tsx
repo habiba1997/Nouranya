@@ -486,6 +486,7 @@ function Login({
 }) {
   const [busy, setBusy] = useState(false),
     [err, setErr] = useState(error);
+  const [username, setUsername] = useState(() => localStorage.getItem("nouranya-username") || "");
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -493,6 +494,7 @@ function Login({
     const form = new FormData(e.currentTarget);
     try {
       await login(String(form.get("username")));
+      localStorage.setItem("nouranya-username", username.trim());
     } catch (e) {
       setErr(message(e));
     } finally {
@@ -547,6 +549,8 @@ function Login({
               <input
                 name="username"
                 type="text"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
                 required
                 autoComplete="username"
                 autoCapitalize="none"
@@ -1968,16 +1972,17 @@ function Exams({
     });
   if (exam?.exam_type === "MIDTERM_1") return <>
     <Heading eyebrow="الاختبار الأول" title="حضور الاختبار الأول" description="جميع الطالبات حاضرات افتراضيًا. اختاري المعلمة وحددي الغائبات ثم احفظي." />
-    <section className="panel">
+    <section className="panel first-exam-attendance">
       <div className="filters">
         <select aria-label="الاختبار" value={examId} onChange={e => { setExamId(e.target.value); setAttendanceDraft({}); }}><option value={examId}>الاختبار الأول</option>{data.exams.filter(e => e.id !== examId).map(e => <option key={e.id} value={e.id}>{examName(e.exam_type)}</option>)}</select>
         <Search value={search} onChange={setSearch} />
         {admin && <TeacherSelect data={data} value={teacher} onChange={setTeacher} />}
       </div>
-      <p>الحاضرات: {students.filter(s => attendanceDraft[s.id] ?? data.first_exam_attendance.find(r => r.student_id === s.id)?.attended ?? true).length} · الغائبات: {students.filter(s => !(attendanceDraft[s.id] ?? data.first_exam_attendance.find(r => r.student_id === s.id)?.attended ?? true)).length}</p>
-      <div className="table-wrap"><table><thead><tr><th>الطالبة</th><th>معلمة الفردية</th><th>معلمة الأونلاين</th><th>الحضور</th></tr></thead><tbody>
-        {students.map(s => <tr key={s.id}><td>{s.full_name}</td><td>{teacherLabel(data, data.student_teacher_assignments.find(a => a.student_id === s.id)?.individual_teacher_id)}</td><td>{teacherLabel(data, data.student_teacher_assignments.find(a => a.student_id === s.id)?.online_teacher_id)}</td><td><label><input type="checkbox" checked={attendanceDraft[s.id] ?? data.first_exam_attendance.find(r => r.student_id === s.id)?.attended ?? true} onChange={e => setAttendanceDraft(current => ({...current, [s.id]: e.target.checked}))} /> حاضرة</label></td></tr>)}
-      </tbody></table>{!students.length && <Empty>لا توجد طالبات بهذه المواصفات.</Empty>}</div>
+      <div className="group-attendance-summary">الحاضرات: {students.filter(s => attendanceDraft[s.id] ?? data.first_exam_attendance.find(r => r.student_id === s.id)?.attended ?? true).length} · الغائبات: {students.filter(s => !(attendanceDraft[s.id] ?? data.first_exam_attendance.find(r => r.student_id === s.id)?.attended ?? true)).length}</div>
+      <div className="group-attendance-list">
+        {students.map(s => { const attended = attendanceDraft[s.id] ?? data.first_exam_attendance.find(r => r.student_id === s.id)?.attended ?? true; return <div className="group-attendance-row" key={s.id}><label className="group-attendance-present"><input type="checkbox" checked={attended} onChange={e => setAttendanceDraft(current => ({...current, [s.id]: e.target.checked}))} aria-label={`حضور ${s.full_name}`} /><strong>{s.full_name}</strong><small>— {teacherLabel(data, data.student_teacher_assignments.find(a => a.student_id === s.id)?.individual_teacher_id)}</small><span>{attended ? "حاضرة" : "غائبة"}</span></label></div>; })}
+        {!students.length && <Empty>لا توجد طالبات بهذه المواصفات.</Empty>}
+      </div>
       <div className="save-bar"><span>تُحفظ التغييرات فقط؛ غير المسجلات حاضرات افتراضيًا.</span><button className="primary" disabled={busy || !Object.keys(attendanceDraft).length} onClick={() => void saveAttendance()}>{busy ? "جارٍ الحفظ…" : "حفظ الحضور"}</button></div>
     </section>
   </>;

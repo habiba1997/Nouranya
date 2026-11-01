@@ -2127,6 +2127,27 @@ td {
 .group-attendance-present span {
   color: #756b5e;
 }
+.first-exam-attendance .group-attendance-present small {
+  color: #756b5e;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.first-exam-attendance .group-attendance-present strong {
+  flex: 0 1 auto;
+}
+.first-exam-attendance .group-attendance-present span {
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+@media (max-width: 700px) {
+  .first-exam-attendance .group-attendance-present {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .first-exam-attendance .group-attendance-present small {
+    white-space: normal;
+  }
+}
 .group-attendance-excuse {
   padding: 8px 12px;
   border-radius: 10px;
@@ -2257,6 +2278,83 @@ td {
 }
 @media (max-width: 380px) {
   .admin-followup-cards { grid-template-columns: 1fr; }
+}
+
+/* The repeated absence report is intentionally card-like on phones. */
+.repeated-absence .absence-events {
+  white-space: normal;
+}
+.repeated-absence .absence-events div {
+  padding: 4px 0;
+}
+@media (max-width: 700px) {
+  .repeated-absence {
+    margin: 10px 8px 24px;
+    border-radius: 16px;
+  }
+  .repeated-absence .panel-heading {
+    padding: 18px 16px 12px;
+  }
+  .repeated-absence .panel-heading h1 {
+    font-size: clamp(22px, 7vw, 30px);
+    line-height: 1.25;
+  }
+  .repeated-absence .panel-heading p {
+    line-height: 1.8;
+  }
+  .repeated-absence .filters {
+    padding: 10px 14px 14px;
+  }
+  .repeated-absence .filters select {
+    width: 100%;
+    min-height: 52px;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+  .repeated-absence .table-wrap {
+    padding: 0 14px 14px;
+  }
+  .repeated-absence tbody {
+    gap: 14px;
+  }
+  .repeated-absence tr {
+    border-color: #dfe8d9;
+    box-shadow: 0 4px 12px rgba(80, 91, 68, .06);
+    padding: 0;
+  }
+  .repeated-absence td,
+  .repeated-absence td:first-child {
+    width: 100%;
+    min-height: 48px;
+    padding: 11px 13px;
+    font-size: 14px;
+  }
+  .repeated-absence td:first-child {
+    background: #f7faf4;
+    font-size: 17px;
+  }
+  .repeated-absence td[data-label]:before {
+    flex-basis: 105px;
+    font-size: 12px;
+  }
+  .repeated-absence td a {
+    color: #435c3c;
+    font-weight: 700;
+  }
+  .repeated-absence .absence-events {
+    display: block;
+    padding-top: 10px;
+    padding-bottom: 12px;
+  }
+  .repeated-absence .absence-events:before {
+    display: block;
+    margin-bottom: 6px;
+  }
+  .repeated-absence .absence-events div {
+    border-top: 1px dashed #e4eadf;
+    padding: 8px 0;
+    line-height: 1.7;
+  }
 }
 
 /* Keep logout anchored inside the viewport while the navigation scrolls. */
