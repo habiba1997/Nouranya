@@ -289,6 +289,7 @@ function Application() {
           ? [["غياب الحلقة المجمعة", "/group-attendance"]]
           : []),
         ["الاختبارات والحضور", "/exams"],
+        ["درجات طالباتي", "/my-exams"],
       ];
   return (
     <div className="app-shell">
@@ -438,6 +439,7 @@ function Application() {
                       <Exams data={data} profile={profile} action={action} />
                     }
                   />
+                  <Route path="/teacher/my-exams" element={<MyStudentExams data={data} profile={profile} />} />
                   {canRecordGroup && (
                     <Route
                       path="/teacher/group-attendance"
@@ -1965,7 +1967,7 @@ function Exams({
         (r) => r.student_id === s.id && r.exam_id === examId,
       );
       return (
-        (!teacher || (exam?.exam_type === "MIDTERM_1" ? data.student_teacher_assignments.some((a) => a.student_id === s.id && (a.individual_teacher_id === teacher || a.online_teacher_id === teacher)) : r?.graded_by === teacher)) &&
+        (!teacher || data.student_teacher_assignments.some((a) => a.student_id === s.id && (a.individual_teacher_id === teacher || a.online_teacher_id === teacher))) &&
         (exam?.exam_type === "MIDTERM_1" || min === "" || (!!r && r.score >= Number(min))) &&
         (exam?.exam_type === "MIDTERM_1" || max === "" || (!!r && r.score <= Number(max)))
       );
@@ -2023,13 +2025,9 @@ function Exams({
             الدرجة النهائية: <strong>{exam?.max_score ?? "غير محددة"}</strong>
           </span>
           <Search value={search} onChange={setSearch} />
+          <TeacherSelect data={data} value={teacher} onChange={setTeacher} />
           {admin && (
             <>
-              <TeacherSelect
-                data={data}
-                value={teacher}
-                onChange={setTeacher}
-              />
               <input
                 className="score"
                 aria-label="أقل درجة"
@@ -2059,6 +2057,7 @@ function Exams({
             <thead>
               <tr>
                 <th>الطالب</th>
+                <th>معلمة الفردية</th>
                 <th>الدرجة</th>
                 <th>ملاحظات</th>
                 {admin && (
@@ -2080,6 +2079,7 @@ function Exams({
                     <td data-label="الطالب">
                       <strong>{s.full_name}</strong>
                     </td>
+                    <td data-label="معلمة الفردية">{teacherLabel(data, data.student_teacher_assignments.find(a => a.student_id === s.id)?.individual_teacher_id)}</td>
                     <td data-label="الدرجة">
                       <input
                         aria-label={`درجة ${s.full_name}`}
@@ -2145,6 +2145,23 @@ function Exams({
       </section>
     </>
   );
+}
+function MyStudentExams({ data, profile }: { data: Data; profile: Profile }) {
+  const [search, setSearch] = useState("");
+  const exams = data.exams.filter(e => e.exam_type !== "MIDTERM_1");
+  const students = assigned(data, profile).filter(s => s.active && s.full_name.toLowerCase().includes(search.toLowerCase()));
+  return <>
+    <Heading eyebrow="نتائج الاختبارات" title="درجات طالباتي" description="درجات طالباتك المسجلة بواسطة المعلمات، للعرض فقط." />
+    <section className="panel">
+      <div className="filters"><Search value={search} onChange={setSearch} /></div>
+      <div className="table-wrap"><table><thead><tr><th>الطالبة</th>{exams.map(e => <th key={e.id}>{examName(e.exam_type)} / {e.max_score}</th>)}</tr></thead>
+        <tbody>{students.map(s => <tr key={s.id}><td data-label="الطالبة"><strong>{s.full_name}</strong></td>{exams.map(e => {
+          const result = data.exam_results.find(r => r.student_id === s.id && r.exam_id === e.id);
+          const grader = data.profiles.find(p => p.id === result?.graded_by);
+          return <td key={e.id} data-label={examName(e.exam_type)}><strong>{result ? `${result.score} / ${e.max_score}` : "لم تُسجّل"}</strong>{result && <div><small>رصدت بواسطة: {grader?.full_name || "غير معروفة"}</small>{result.notes && <div>{result.notes}</div>}</div>}</td>;
+        })}</tr>)}</tbody></table>{!students.length && <Empty>لا توجد طالبات بهذه المواصفات.</Empty>}</div>
+    </section>
+  </>;
 }
 function ExamSettings({ data, action }: { data: Data; action: Action }) {
   const [definitions] = useState<Exam[]>(() =>
